@@ -1,0 +1,175 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  software-quality:
+    name: Python ${{ matrix.python-version }} software checks
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install core and development dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[dev]'
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Test
+        run: pytest -q
+
+  classical-evidence:
+    name: Reproduce committed classical evidence
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install runtime dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+
+      - name: Re-run classical experiments against the locked test
+        run: |
+          python -m modelforge.experiments.run_classical \
+            --output "${RUNNER_TEMP}/classical-result.json" \
+            --model-output "${RUNNER_TEMP}/classical-model.joblib"
+          python -m modelforge.experiments.run_data_ablation \
+            --noise-fractions 0 0.1 0.3 \
+            --seed 20260820 \
+            --output "${RUNNER_TEMP}/classical-label-quality-ablation.json"
+
+      - name: Compare stable baseline evidence fields
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          committed = json.loads(
+              Path("experiments/results/classical_tfidf_logreg_v1.json").read_text()
+          )
+          reproduced = json.loads(
+              (Path(os.environ["RUNNER_TEMP"]) / "classical-result.json").read_text()
+          )
+
+          stable_fields = (
+              "artifact_version",
+              "result_status",
+              "experiment_id",
+              "hypothesis",
+              "dataset_name",
+              "dataset_version",
+              "train_file_sha256",
+              "validation_file_sha256",
+              "test_file_sha256",
+              "test_lock_sha256",
+              "train_count",
+              "model_id",
+              "model_version",
+              "baseline_config",
+          )
+          for field in stable_fields:
+              assert reproduced[field] == committed[field], field
+
+          for split in ("validation", "test"):
+              assert reproduced[split]["count"] == committed[split]["count"], split
+              assert reproduced[split]["metrics"] == committed[split]["metrics"], split
+              assert reproduced[split]["estimated_cost_usd_per_request"] == 0.0, split
+
+          assert reproduced["limitations"] == committed["limitations"]
+          print("stable classical evidence matches the committed artifact")
+          PY
+
+      - name: Compare all stable ablation fields and points
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          committed = json.loads(
+              Path(
+                  "experiments/results/classical_label_quality_ablation_v1.json"
+              ).read_text()
+          )
+          reproduced = json.loads(
+              (
+                  Path(os.environ["RUNNER_TEMP"])
+                  / "classical-label-quality-ablation.json"
+              ).read_text()
+          )
+
+          assert set(reproduced) == set(committed)
+          assert reproduced["artifact_version"] == "1.1"
+          unstable_top_level_fields = {"completed_at", "points"}
+          for field in sorted(set(committed) - unstable_top_level_fields):
+              assert reproduced[field] == committed[field], field
+
+          assert len(reproduced["points"]) == len(committed["points"])
+          unstable_point_fields = {"fit_seconds", "model_version"}
+          required_error_fields = {"validation_errors", "test_errors"}
+          for index, (actual, expected) in enumerate(
+              zip(reproduced["points"], committed["points"], strict=True)
+          ):
+              assert set(actual) == set(expected), f"point[{index}] fields"
+              assert required_error_fields <= set(actual), f"point[{index}] errors"
+              for field in sorted(set(expected) - unstable_point_fields):
+                  assert actual[field] == expected[field], f"point[{index}].{field}"
+
+              for split in ("validation", "test"):
+                  error_summary = actual[f"{split}_errors"]
+                  examples = error_summary["representative_examples"]
+                  case_ids = [example["case_id"] for example in examples]
+                  assert case_ids == sorted(case_ids), f"point[{index}].{split} order"
+                  assert len(examples) == min(
+                      error_summary["misclassified_count"], 10
+                  ), f"point[{index}].{split} cap"
+                  expected_keys = {
+                      "case_id",
+                      "expected_issue_type",
+                      "predicted_issue_type",
+                  }
+                  assert all(
+                      set(example) == expected_keys for example in examples
+                  ), f"point[{index}].{split} privacy fields"
+
+          print("all stable label-quality ablation evidence matches")
+          PY
+
+      - name: Upload reproduced artifacts for inspection
+        uses: actions/upload-artifact@v4
+        with:
+          name: reproduced-classical-evidence
+          path: |
+            ${{ runner.temp }}/classical-result.json
+            ${{ runner.temp }}/classical-label-quality-ablation.json
+          if-no-files-found: error

@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc" viewBox="0 0 960 520">
+<title id="title">Locked-test per-class F1</title>
+<desc id="desc">Synthetic IAM benchmark · classical issue_type classifier · 200 locked cases</desc>
+<style>
+text{font-family:Inter,system-ui,-apple-system,sans-serif;fill:#172033}
+.title{font-size:22px;font-weight:700}.subtitle{font-size:13px;fill:#526078}
+.axis{font-size:12px;fill:#46546b}.value{font-size:12px;font-weight:650}
+.grid{stroke:#d7dde8;stroke-width:1}.frame{fill:#fff;stroke:#9aa7ba}
+.series-a{fill:#1769aa;stroke:#1769aa}.series-b{fill:#d1495b;stroke:#d1495b}
+</style>
+<rect width="960" height="520" fill="#ffffff"/>
+<text class="title" x="90" y="34">Locked-test per-class F1</text>
+<text class="subtitle" x="90" y="57">Synthetic IAM benchmark · classical issue_type classifier · 200 locked cases</text>
+<rect class="frame" x="90" y="78" width="840" height="330"/>
+<line class="grid" x1="90" y1="408.00" x2="930" y2="408.00"/>
+<text class="axis" x="80" y="412.00" text-anchor="end">0.0</text>
+<line class="grid" x1="90" y1="342.00" x2="930" y2="342.00"/>
+<text class="axis" x="80" y="346.00" text-anchor="end">0.2</text>
+<line class="grid" x1="90" y1="276.00" x2="930" y2="276.00"/>
+<text class="axis" x="80" y="280.00" text-anchor="end">0.4</text>
+<line class="grid" x1="90" y1="210.00" x2="930" y2="210.00"/>
+<text class="axis" x="80" y="214.00" text-anchor="end">0.6</text>
+<line class="grid" x1="90" y1="144.00" x2="930" y2="144.00"/>
+<text class="axis" x="80" y="148.00" text-anchor="end">0.8</text>
+<line class="grid" x1="90" y1="78.00" x2="930" y2="78.00"/>
+<text class="axis" x="80" y="82.00" text-anchor="end">1.0</text>
+<rect class="series-a" x="119.40" y="78.00" width="81.20" height="330.00"/>
+<text class="value" x="160.00" y="93.00" text-anchor="middle">1.000</text>
+<text class="axis" x="160.00" y="432" text-anchor="middle">SSO auth</text>
+<rect class="series-a" x="259.40" y="78.00" width="81.20" height="330.00"/>
+<text class="value" x="300.00" y="93.00" text-anchor="middle">1.000</text>
+<text class="axis" x="300.00" y="432" text-anchor="middle">MFA</text>
+<rect class="series-a" x="399.40" y="78.00" width="81.20" height="330.00"/>
+<text class="value" x="440.00" y="93.00" text-anchor="middle">1.000</text>
+<text class="axis" x="440.00" y="432" text-anchor="middle">Account lock</text>
+<rect class="series-a" x="539.40" y="78.00" width="81.20" height="330.00"/>
+<text class="value" x="580.00" y="93.00" text-anchor="middle">1.000</text>
+<text class="axis" x="580.00" y="432" text-anchor="middle">Access denied</text>
+<rect class="series-a" x="679.40" y="78.00" width="81.20" height="330.00"/>
+<text class="value" x="720.00" y="93.00" text-anchor="middle">1.000</text>
+<text class="axis" x="720.00" y="432" text-anchor="middle">Provisioning/sync</text>
+<rect class="series-a" x="819.40" y="78.00" width="81.20" height="330.00"/>
+<text class="value" x="860.00" y="93.00" text-anchor="middle">1.000</text>
+<text class="axis" x="860.00" y="432" text-anchor="middle">Other IAM</text>
+<text class="axis" transform="translate(24 243.0) rotate(-90)" text-anchor="middle">F1 (0–1)</text>
+<text class="subtitle" x="90" y="502">All classes scored 1.000; this saturation is evidence of template simplicity, not production readiness.</text>
+</svg>

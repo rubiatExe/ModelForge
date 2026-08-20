@@ -1,0 +1,53 @@
+config_version: "1.0"
+experiment_name: qwen_lora_r16_v1
+model_name_or_path: Qwen/Qwen2.5-0.5B-Instruct
+# The loader resolves this alias to a Hub commit and refuses to train when an
+# immutable revision cannot be recovered for the manifest.
+model_revision: main
+tokenizer_name_or_path: Qwen/Qwen2.5-0.5B-Instruct
+tokenizer_revision: main
+trust_remote_code: false
+local_files_only: false
+require_resolved_revision: true
+
+train_data: data/iam_triage_v1/train.jsonl
+validation_data: data/iam_triage_v1/validation.jsonl
+prompt_path: prompts/iam_triage_v1.txt
+output_root: experiments/runs
+
+seed: 17
+max_length: 1024
+minimum_response_tokens: 16
+# Confidence is not a gold label. A neutral target avoids teaching certainty;
+# routing calibration is measured separately on validation predictions.
+training_confidence: 0.5
+
+epochs: 3
+optimizer: adamw_torch
+learning_rate: 0.0002
+weight_decay: 0.01
+warmup_ratio: 0.03
+train_batch_size: 4
+validation_batch_size: 4
+gradient_accumulation_steps: 4
+gradient_checkpointing: false
+max_grad_norm: 1.0
+logging_steps: 10
+save_total_limit: 2
+early_stopping_patience: 2
+dataloader_num_workers: 0
+
+device: auto
+precision: auto
+deterministic_algorithms: true
+
+lora:
+  rank: 16
+  alpha: 32
+  dropout: 0.05
+  bias: none
+  target_modules:
+    - q_proj
+    - k_proj
+    - v_proj
+    - o_proj

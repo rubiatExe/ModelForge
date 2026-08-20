@@ -1,0 +1,12 @@
+{
+  "policy_id": "iam-routing-v1-dev",
+  "version": "1.0.0",
+  "status": "uncalibrated",
+  "threshold": 0.85,
+  "small_model_id": "heuristic-demo-v1",
+  "frontier_model_id": "unconfigured-frontier",
+  "dataset_version": "iam_ticket_triage@1.0.0",
+  "validation_run_id": null,
+  "created_at": "2026-08-20T00:00:00Z",
+  "notes": "Development default only. Replace with an artifact selected on validation data before production or untouched-test claims."
+}

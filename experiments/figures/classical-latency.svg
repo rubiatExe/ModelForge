@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc" viewBox="0 0 960 520">
+<title id="title">Classical inference latency</title>
+<desc id="desc">Synthetic IAM benchmark · sequential single-request issue_type inference</desc>
+<style>
+text{font-family:Inter,system-ui,-apple-system,sans-serif;fill:#172033}
+.title{font-size:22px;font-weight:700}.subtitle{font-size:13px;fill:#526078}
+.axis{font-size:12px;fill:#46546b}.value{font-size:12px;font-weight:650}
+.grid{stroke:#d7dde8;stroke-width:1}.frame{fill:#fff;stroke:#9aa7ba}
+.series-a{fill:#1769aa;stroke:#1769aa}.series-b{fill:#d1495b;stroke:#d1495b}
+</style>
+<rect width="960" height="520" fill="#ffffff"/>
+<text class="title" x="90" y="34">Classical inference latency</text>
+<text class="subtitle" x="90" y="57">Synthetic IAM benchmark · sequential single-request issue_type inference</text>
+<rect class="frame" x="90" y="78" width="840" height="330"/>
+<line class="grid" x1="90" y1="408.00" x2="930" y2="408.00"/>
+<text class="axis" x="80" y="412.00" text-anchor="end">0.000</text>
+<line class="grid" x1="90" y1="342.00" x2="930" y2="342.00"/>
+<text class="axis" x="80" y="346.00" text-anchor="end">0.047</text>
+<line class="grid" x1="90" y1="276.00" x2="930" y2="276.00"/>
+<text class="axis" x="80" y="280.00" text-anchor="end">0.094</text>
+<line class="grid" x1="90" y1="210.00" x2="930" y2="210.00"/>
+<text class="axis" x="80" y="214.00" text-anchor="end">0.141</text>
+<line class="grid" x1="90" y1="144.00" x2="930" y2="144.00"/>
+<text class="axis" x="80" y="148.00" text-anchor="end">0.188</text>
+<line class="grid" x1="90" y1="78.00" x2="930" y2="78.00"/>
+<text class="axis" x="80" y="82.00" text-anchor="end">0.235</text>
+<rect x="189.00" y="141.67" width="60.00" height="266.33" fill="#1769aa"/>
+<text class="value" x="219.00" y="134.67" text-anchor="middle">0.190</text>
+<rect x="270.00" y="146.30" width="60.00" height="261.70" fill="#2a9d8f"/>
+<text class="value" x="300.00" y="139.30" text-anchor="middle">0.186</text>
+<rect x="351.00" y="128.34" width="60.00" height="279.66" fill="#d1495b"/>
+<text class="value" x="381.00" y="121.34" text-anchor="middle">0.199</text>
+<text class="axis" x="300.00" y="434" text-anchor="middle">Validation</text>
+<rect x="609.00" y="145.78" width="60.00" height="262.22" fill="#1769aa"/>
+<text class="value" x="639.00" y="138.78" text-anchor="middle">0.187</text>
+<rect x="690.00" y="147.94" width="60.00" height="260.06" fill="#2a9d8f"/>
+<text class="value" x="720.00" y="140.94" text-anchor="middle">0.185</text>
+<rect x="771.00" y="133.66" width="60.00" height="274.34" fill="#d1495b"/>
+<text class="value" x="801.00" y="126.66" text-anchor="middle">0.195</text>
+<text class="axis" x="720.00" y="434" text-anchor="middle">Locked test</text>
+<rect x="90" y="448" width="13" height="13" fill="#1769aa"/>
+<text class="axis" x="110" y="459">Average</text>
+<rect x="225" y="448" width="13" height="13" fill="#2a9d8f"/>
+<text class="axis" x="245" y="459">p50</text>
+<rect x="360" y="448" width="13" height="13" fill="#d1495b"/>
+<text class="axis" x="380" y="459">p95</text>
+<text class="axis" transform="translate(24 243.0) rotate(-90)" text-anchor="middle">Latency (ms)</text>
+<text class="subtitle" x="90" y="502">Measured on one macOS process; excludes deserialization, concurrency, and production load.</text>
+</svg>

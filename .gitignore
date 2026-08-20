@@ -1,0 +1,26 @@
+.DS_Store
+.env
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+
+# Large or private runtime artifacts
+adapters/
+artifacts/models/
+data/raw/private/
+experiments/runs/
+telemetry/*.jsonl
+*.joblib
+*.safetensors
+*.gguf
+
+# Local provider/model caches
+.cache/
+huggingface/

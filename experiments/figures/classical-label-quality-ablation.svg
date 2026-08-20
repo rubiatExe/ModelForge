@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc" viewBox="0 0 960 520">
+<title id="title">Training-label quality ablation</title>
+<desc id="desc">Synthetic IAM benchmark · classical issue_type macro F1 · gold validation/test unchanged</desc>
+<style>
+text{font-family:Inter,system-ui,-apple-system,sans-serif;fill:#172033}
+.title{font-size:22px;font-weight:700}.subtitle{font-size:13px;fill:#526078}
+.axis{font-size:12px;fill:#46546b}.value{font-size:12px;font-weight:650}
+.grid{stroke:#d7dde8;stroke-width:1}.frame{fill:#fff;stroke:#9aa7ba}
+.series-a{fill:#1769aa;stroke:#1769aa}.series-b{fill:#d1495b;stroke:#d1495b}
+</style>
+<rect width="960" height="520" fill="#ffffff"/>
+<text class="title" x="90" y="34">Training-label quality ablation</text>
+<text class="subtitle" x="90" y="57">Synthetic IAM benchmark · classical issue_type macro F1 · gold validation/test unchanged</text>
+<rect class="frame" x="90" y="78" width="840" height="330"/>
+<line class="grid" x1="90" y1="408.00" x2="930" y2="408.00"/>
+<text class="axis" x="80" y="412.00" text-anchor="end">0.94</text>
+<line class="grid" x1="90" y1="342.00" x2="930" y2="342.00"/>
+<text class="axis" x="80" y="346.00" text-anchor="end">0.95</text>
+<line class="grid" x1="90" y1="276.00" x2="930" y2="276.00"/>
+<text class="axis" x="80" y="280.00" text-anchor="end">0.96</text>
+<line class="grid" x1="90" y1="210.00" x2="930" y2="210.00"/>
+<text class="axis" x="80" y="214.00" text-anchor="end">0.98</text>
+<line class="grid" x1="90" y1="144.00" x2="930" y2="144.00"/>
+<text class="axis" x="80" y="148.00" text-anchor="end">0.99</text>
+<line class="grid" x1="90" y1="78.00" x2="930" y2="78.00"/>
+<text class="axis" x="80" y="82.00" text-anchor="end">1.00</text>
+<text class="axis" x="90.00" y="432" text-anchor="middle">0%</text>
+<text class="axis" x="370.00" y="432" text-anchor="middle">10%</text>
+<text class="axis" x="930.00" y="432" text-anchor="middle">30%</text>
+<path d="M 90.00 78.00 L 370.00 78.00 L 930.00 245.59" class="series-a" fill="none" stroke-width="3"/>
+<circle class="series-a" cx="90.00" cy="78.00" r="5"/>
+<text class="value" x="90.00" y="68.00" text-anchor="middle">1.000</text>
+<circle class="series-a" cx="370.00" cy="78.00" r="5"/>
+<text class="value" x="370.00" y="68.00" text-anchor="middle">1.000</text>
+<circle class="series-a" cx="930.00" cy="245.59" r="5"/>
+<text class="value" x="930.00" y="235.59" text-anchor="middle">0.970</text>
+<line class="series-a" x1="90" y1="455" x2="114" y2="455" stroke-width="3"/>
+<text class="axis" x="122" y="459">Validation</text>
+<path d="M 90.00 78.00 L 370.00 78.00 L 930.00 300.48" class="series-b" fill="none" stroke-width="3"/>
+<circle class="series-b" cx="90.00" cy="78.00" r="5"/>
+<text class="value" x="90.00" y="96.00" text-anchor="middle">1.000</text>
+<circle class="series-b" cx="370.00" cy="78.00" r="5"/>
+<text class="value" x="370.00" y="96.00" text-anchor="middle">1.000</text>
+<circle class="series-b" cx="930.00" cy="300.48" r="5"/>
+<text class="value" x="930.00" y="318.48" text-anchor="middle">0.960</text>
+<line class="series-b" x1="235" y1="455" x2="259" y2="455" stroke-width="3"/>
+<text class="axis" x="267" y="459">Locked test</text>
+<text class="axis" x="510.0" y="459" text-anchor="middle">Injected training-label noise</text>
+<text class="axis" transform="translate(24 243.0) rotate(-90)" text-anchor="middle">Macro F1</text>
+<text class="subtitle" x="90" y="502">30% cyclic corruption lowered locked-test macro F1 to 0.960; this is a controlled stressor, not human error.</text>
+</svg>

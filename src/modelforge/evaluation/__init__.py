@@ -1,0 +1,121 @@
+"""Deterministic evaluation, calibrated routing analysis, and regression gates."""
+
+from modelforge.evaluation.calibration import (
+    CalibrationObservation,
+    CalibrationReport,
+    calibration_from_evaluation,
+    expected_calibration_error,
+    risk_coverage_curve,
+)
+from modelforge.evaluation.failures import FailureTaxonomyReport, build_failure_taxonomy
+from modelforge.evaluation.human_review import (
+    export_human_review_csv,
+    export_human_review_jsonl,
+    import_human_review_csv,
+    import_human_review_jsonl,
+)
+from modelforge.evaluation.judge import (
+    EvidenceComparisonReport,
+    EvidenceJudgeRequest,
+    EvidenceJudgment,
+    HumanEvidenceReview,
+    Judge,
+    JudgeResult,
+    JudgeSpec,
+    JudgeValidationReport,
+    build_evidence_comparison,
+    validate_judge,
+)
+from modelforge.evaluation.metrics import (
+    classification_metrics,
+    evaluate_records,
+    evaluation_record_from_domain,
+    literal_evidence_counts,
+    validate_schema,
+)
+from modelforge.evaluation.models import (
+    EVALUATOR_VERSION,
+    EvaluationConfig,
+    EvaluationRecord,
+    EvaluationReport,
+    PredictionError,
+)
+from modelforge.evaluation.regression import (
+    MetricFloor,
+    RegressionGateResult,
+    RegressionPolicy,
+    RunIdentity,
+    gate_regression,
+)
+from modelforge.evaluation.reporting import (
+    calibration_markdown,
+    evaluation_markdown,
+    evidence_comparison_markdown,
+    failure_taxonomy_markdown,
+    judge_validation_markdown,
+    regression_gate_markdown,
+    routing_sweep_markdown,
+)
+from modelforge.evaluation.routing import (
+    DEFAULT_THRESHOLDS,
+    CachedPrediction,
+    CachedRoutingCase,
+    RoutingSweepReport,
+    evaluate_routing_threshold,
+    sweep_routing_thresholds,
+)
+from modelforge.evaluation.serialization import read_json_artifact, write_json_artifact
+
+__all__ = [
+    "DEFAULT_THRESHOLDS",
+    "EVALUATOR_VERSION",
+    "CachedPrediction",
+    "CachedRoutingCase",
+    "CalibrationObservation",
+    "CalibrationReport",
+    "EvaluationConfig",
+    "EvaluationRecord",
+    "EvaluationReport",
+    "EvidenceComparisonReport",
+    "EvidenceJudgeRequest",
+    "EvidenceJudgment",
+    "FailureTaxonomyReport",
+    "HumanEvidenceReview",
+    "Judge",
+    "JudgeResult",
+    "JudgeSpec",
+    "JudgeValidationReport",
+    "MetricFloor",
+    "PredictionError",
+    "RegressionGateResult",
+    "RegressionPolicy",
+    "RoutingSweepReport",
+    "RunIdentity",
+    "build_evidence_comparison",
+    "build_failure_taxonomy",
+    "calibration_from_evaluation",
+    "calibration_markdown",
+    "classification_metrics",
+    "evaluate_records",
+    "evaluate_routing_threshold",
+    "evaluation_record_from_domain",
+    "evaluation_markdown",
+    "evidence_comparison_markdown",
+    "expected_calibration_error",
+    "export_human_review_csv",
+    "export_human_review_jsonl",
+    "failure_taxonomy_markdown",
+    "gate_regression",
+    "import_human_review_csv",
+    "import_human_review_jsonl",
+    "literal_evidence_counts",
+    "judge_validation_markdown",
+    "read_json_artifact",
+    "regression_gate_markdown",
+    "risk_coverage_curve",
+    "routing_sweep_markdown",
+    "sweep_routing_thresholds",
+    "validate_judge",
+    "validate_schema",
+    "write_json_artifact",
+]

@@ -1,0 +1,270 @@
+{
+  "artifact_version": "1.0",
+  "result_status": "measured",
+  "experiment_id": "classical_tfidf_logreg_v1",
+  "completed_at": "2026-08-20T16:58:07.370435Z",
+  "hypothesis": "A sparse lexical baseline establishes the minimum complexity IAM triage needs.",
+  "dataset_name": "iam_ticket_triage",
+  "dataset_version": "1.0.0",
+  "train_file_sha256": "b0227cdf59034e18b0690aaba974fc1e8a92a03a49d05f3bfd1cda3d16427559",
+  "validation_file_sha256": "d62352a575ffd1afe08badb3acbc6f7f02d1b89965bb2f393166b0782e05418a",
+  "test_file_sha256": "4c3c7a70077a2e02e5c2698ff77fac79ef0012367ee96deb444f57af932aac30",
+  "test_lock_sha256": "6e78514240f0d9a5282687f38de0352d3de1fdb9aa35006e5af8cc3d7f169263",
+  "train_count": 500,
+  "fit_seconds": 0.9800304579548538,
+  "peak_rss_raw": 195477504,
+  "peak_rss_platform_note": "ru_maxrss is bytes on macOS and KiB on Linux; it is process peak RSS, not model-only memory",
+  "model_id": "tfidf-logreg-issue-type-v1",
+  "model_version": "3bd1c4371f335117",
+  "baseline_config": {
+    "random_state": 20260820,
+    "max_features": 20000,
+    "max_iter": 1000,
+    "features": "word_unigram_bigram_tfidf",
+    "classifier": "balanced_logistic_regression"
+  },
+  "model_artifact_sha256": "f92250e75bccd7ce2f9277d33a99fbc3e86cc957689e76c5aed09d5a10d5840a",
+  "validation": {
+    "count": 100,
+    "metrics": {
+      "labels": [
+        "SSO_AUTHENTICATION_FAILURE",
+        "MFA_FAILURE",
+        "ACCOUNT_LOCKED_OR_DISABLED",
+        "ACCESS_DENIED_AFTER_LOGIN",
+        "PROVISIONING_OR_SYNC_FAILURE",
+        "OTHER_IAM"
+      ],
+      "count": 100.0,
+      "accuracy": 1.0,
+      "macro_precision": 1.0,
+      "macro_recall": 1.0,
+      "macro_f1": 1.0,
+      "per_class": {
+        "SSO_AUTHENTICATION_FAILURE": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 17.0,
+          "predicted": 17.0
+        },
+        "MFA_FAILURE": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 17.0,
+          "predicted": 17.0
+        },
+        "ACCOUNT_LOCKED_OR_DISABLED": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 17.0,
+          "predicted": 17.0
+        },
+        "ACCESS_DENIED_AFTER_LOGIN": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 17.0,
+          "predicted": 17.0
+        },
+        "PROVISIONING_OR_SYNC_FAILURE": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 16.0,
+          "predicted": 16.0
+        },
+        "OTHER_IAM": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 16.0,
+          "predicted": 16.0
+        }
+      },
+      "confusion_matrix": {
+        "SSO_AUTHENTICATION_FAILURE": {
+          "SSO_AUTHENTICATION_FAILURE": 17.0,
+          "MFA_FAILURE": 0.0,
+          "ACCOUNT_LOCKED_OR_DISABLED": 0.0,
+          "ACCESS_DENIED_AFTER_LOGIN": 0.0,
+          "PROVISIONING_OR_SYNC_FAILURE": 0.0,
+          "OTHER_IAM": 0.0
+        },
+        "MFA_FAILURE": {
+          "SSO_AUTHENTICATION_FAILURE": 0.0,
+          "MFA_FAILURE": 17.0,
+          "ACCOUNT_LOCKED_OR_DISABLED": 0.0,
+          "ACCESS_DENIED_AFTER_LOGIN": 0.0,
+          "PROVISIONING_OR_SYNC_FAILURE": 0.0,
+          "OTHER_IAM": 0.0
+        },
+        "ACCOUNT_LOCKED_OR_DISABLED": {
+          "SSO_AUTHENTICATION_FAILURE": 0.0,
+          "MFA_FAILURE": 0.0,
+          "ACCOUNT_LOCKED_OR_DISABLED": 17.0,
+          "ACCESS_DENIED_AFTER_LOGIN": 0.0,
+          "PROVISIONING_OR_SYNC_FAILURE": 0.0,
+          "OTHER_IAM": 0.0
+        },
+        "ACCESS_DENIED_AFTER_LOGIN": {
+          "SSO_AUTHENTICATION_FAILURE": 0.0,
+          "MFA_FAILURE": 0.0,
+          "ACCOUNT_LOCKED_OR_DISABLED": 0.0,
+          "ACCESS_DENIED_AFTER_LOGIN": 17.0,
+          "PROVISIONING_OR_SYNC_FAILURE": 0.0,
+          "OTHER_IAM": 0.0
+        },
+        "PROVISIONING_OR_SYNC_FAILURE": {
+          "SSO_AUTHENTICATION_FAILURE": 0.0,
+          "MFA_FAILURE": 0.0,
+          "ACCOUNT_LOCKED_OR_DISABLED": 0.0,
+          "ACCESS_DENIED_AFTER_LOGIN": 0.0,
+          "PROVISIONING_OR_SYNC_FAILURE": 16.0,
+          "OTHER_IAM": 0.0
+        },
+        "OTHER_IAM": {
+          "SSO_AUTHENTICATION_FAILURE": 0.0,
+          "MFA_FAILURE": 0.0,
+          "ACCOUNT_LOCKED_OR_DISABLED": 0.0,
+          "ACCESS_DENIED_AFTER_LOGIN": 0.0,
+          "PROVISIONING_OR_SYNC_FAILURE": 0.0,
+          "OTHER_IAM": 16.0
+        }
+      }
+    },
+    "average_latency_ms": 0.1896329177543521,
+    "p50_latency_ms": 0.1863331999629736,
+    "p95_latency_ms": 0.19912514835596085,
+    "estimated_cost_usd_per_request": 0.0
+  },
+  "test": {
+    "count": 200,
+    "metrics": {
+      "labels": [
+        "SSO_AUTHENTICATION_FAILURE",
+        "MFA_FAILURE",
+        "ACCOUNT_LOCKED_OR_DISABLED",
+        "ACCESS_DENIED_AFTER_LOGIN",
+        "PROVISIONING_OR_SYNC_FAILURE",
+        "OTHER_IAM"
+      ],
+      "count": 200.0,
+      "accuracy": 1.0,
+      "macro_precision": 1.0,
+      "macro_recall": 1.0,
+      "macro_f1": 1.0,
+      "per_class": {
+        "SSO_AUTHENTICATION_FAILURE": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 34.0,
+          "predicted": 34.0
+        },
+        "MFA_FAILURE": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 34.0,
+          "predicted": 34.0
+        },
+        "ACCOUNT_LOCKED_OR_DISABLED": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 33.0,
+          "predicted": 33.0
+        },
+        "ACCESS_DENIED_AFTER_LOGIN": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 33.0,
+          "predicted": 33.0
+        },
+        "PROVISIONING_OR_SYNC_FAILURE": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 33.0,
+          "predicted": 33.0
+        },
+        "OTHER_IAM": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 33.0,
+          "predicted": 33.0
+        }
+      },
+      "confusion_matrix": {
+        "SSO_AUTHENTICATION_FAILURE": {
+          "SSO_AUTHENTICATION_FAILURE": 34.0,
+          "MFA_FAILURE": 0.0,
+          "ACCOUNT_LOCKED_OR_DISABLED": 0.0,
+          "ACCESS_DENIED_AFTER_LOGIN": 0.0,
+          "PROVISIONING_OR_SYNC_FAILURE": 0.0,
+          "OTHER_IAM": 0.0
+        },
+        "MFA_FAILURE": {
+          "SSO_AUTHENTICATION_FAILURE": 0.0,
+          "MFA_FAILURE": 34.0,
+          "ACCOUNT_LOCKED_OR_DISABLED": 0.0,
+          "ACCESS_DENIED_AFTER_LOGIN": 0.0,
+          "PROVISIONING_OR_SYNC_FAILURE": 0.0,
+          "OTHER_IAM": 0.0
+        },
+        "ACCOUNT_LOCKED_OR_DISABLED": {
+          "SSO_AUTHENTICATION_FAILURE": 0.0,
+          "MFA_FAILURE": 0.0,
+          "ACCOUNT_LOCKED_OR_DISABLED": 33.0,
+          "ACCESS_DENIED_AFTER_LOGIN": 0.0,
+          "PROVISIONING_OR_SYNC_FAILURE": 0.0,
+          "OTHER_IAM": 0.0
+        },
+        "ACCESS_DENIED_AFTER_LOGIN": {
+          "SSO_AUTHENTICATION_FAILURE": 0.0,
+          "MFA_FAILURE": 0.0,
+          "ACCOUNT_LOCKED_OR_DISABLED": 0.0,
+          "ACCESS_DENIED_AFTER_LOGIN": 33.0,
+          "PROVISIONING_OR_SYNC_FAILURE": 0.0,
+          "OTHER_IAM": 0.0
+        },
+        "PROVISIONING_OR_SYNC_FAILURE": {
+          "SSO_AUTHENTICATION_FAILURE": 0.0,
+          "MFA_FAILURE": 0.0,
+          "ACCOUNT_LOCKED_OR_DISABLED": 0.0,
+          "ACCESS_DENIED_AFTER_LOGIN": 0.0,
+          "PROVISIONING_OR_SYNC_FAILURE": 33.0,
+          "OTHER_IAM": 0.0
+        },
+        "OTHER_IAM": {
+          "SSO_AUTHENTICATION_FAILURE": 0.0,
+          "MFA_FAILURE": 0.0,
+          "ACCOUNT_LOCKED_OR_DISABLED": 0.0,
+          "ACCESS_DENIED_AFTER_LOGIN": 0.0,
+          "PROVISIONING_OR_SYNC_FAILURE": 0.0,
+          "OTHER_IAM": 33.0
+        }
+      }
+    },
+    "average_latency_ms": 0.1867043797392398,
+    "p50_latency_ms": 0.18516695126891136,
+    "p95_latency_ms": 0.19533303566277027,
+    "estimated_cost_usd_per_request": 0.0
+  },
+  "environment": {
+    "python": "3.13.7",
+    "platform": "macOS-15.3.2-arm64-arm-64bit-Mach-O",
+    "scikit_learn": "1.9.0",
+    "numpy": "2.5.2"
+  },
+  "limitations": [
+    "The benchmark is template-generated and much easier than real enterprise tickets.",
+    "The required classical baseline predicts issue_type only; non-issue fields are not scored here.",
+    "Single-request latency is measured without concurrent load or model deserialization."
+  ]
+}
