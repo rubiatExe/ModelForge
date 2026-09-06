@@ -1,0 +1,131 @@
+{
+  "artifact_type": "hosted_lora_implementation_summary",
+  "artifact_version": "1.0",
+  "result_status": "measured",
+  "evidence_scope": "implementation_and_provenance_only",
+  "run_id": "qwen-lora-r16-20260906-03",
+  "evidence_finalized_at": "2026-09-06T18:50:06.931256Z",
+  "source": {
+    "commit_sha": "1318d24565af63faf7748d8d85b2ec0aede50c52",
+    "dirty": false
+  },
+  "model": {
+    "name_or_path": "Qwen/Qwen2.5-0.5B-Instruct",
+    "requested_revision": "7ae557604adf67be50417f59c2c2f167def9a775",
+    "resolved_revision": "7ae557604adf67be50417f59c2c2f167def9a775",
+    "tokenizer_revision": "7ae557604adf67be50417f59c2c2f167def9a775",
+    "trust_remote_code": false
+  },
+  "training": {
+    "method": "peft_lora",
+    "epochs": 1.0,
+    "train_examples": 500,
+    "validation_examples": 100,
+    "seed": 17,
+    "max_length": 1024,
+    "train_batch_size": 2,
+    "validation_batch_size": 4,
+    "gradient_accumulation_steps": 8,
+    "effective_train_batch_size": 16,
+    "lora": {
+      "rank": 16,
+      "alpha": 32,
+      "dropout": 0.05,
+      "bias": "none",
+      "target_modules": [
+        "q_proj",
+        "k_proj",
+        "v_proj",
+        "o_proj"
+      ]
+    },
+    "parameter_counts": {
+      "trainable": 2162688,
+      "total": 496195456,
+      "trainable_fraction": 0.004358540518355734
+    },
+    "hardware": {
+      "device": "cuda",
+      "precision": "bf16",
+      "accelerator_name": "Tesla T4",
+      "python_version": "3.12.13",
+      "torch_version": "2.11.0+cu128"
+    },
+    "trainer_metrics": {
+      "optimizer_steps": 32,
+      "train_runtime_seconds": 455.3395,
+      "train_loss": 0.08491655753459781,
+      "eval_loss": 0.03174358606338501,
+      "truncated_training_examples": 0,
+      "truncated_validation_examples": 0
+    }
+  },
+  "response_only_mask_audit": {
+    "result_status": "measured",
+    "passed": true,
+    "audited_train_examples": 500,
+    "expected_train_examples": 500,
+    "every_pre_response_label_is_ignored": true,
+    "every_response_label_matches_input_id": true,
+    "every_row_meets_minimum_response_tokens": true,
+    "truncated_examples": 0,
+    "artifact_sha256": "85c57520c0344a460d61fc7a6c84fb8399b7ecf7b2543991d7808ad09534fd86",
+    "row_audit_sha256": "a4c812f0b9ecf7c5768613ee2d6afdc89c3231551f8f2a9329bad9d46e404369"
+  },
+  "adapter_fastapi_smoke": {
+    "result_status": "measured",
+    "passed": true,
+    "transport": "fastapi.testclient.TestClient",
+    "method": "POST",
+    "endpoint": "/v1/models/small-iam-triage-v1/triage",
+    "response_status_code": 200,
+    "response_schema_name": "TriageResult",
+    "response_schema_validated": true,
+    "model_header": "small-iam-triage-v1",
+    "validation_case_id": "MF-VA-0001",
+    "validation_case_predeclared": true,
+    "local_files_only": true,
+    "network_socket_bound": false,
+    "request_body_persisted": false,
+    "response_body_persisted": false
+  },
+  "confidence_routing_smoke": {
+    "result_status": "fixture",
+    "all_passed": true,
+    "scenarios": [
+      "high_confidence_local",
+      "low_confidence_fail_closed",
+      "small_model_error_fail_closed"
+    ],
+    "policy_status": "uncalibrated",
+    "threshold": 0.85,
+    "confidence_is_probability": false,
+    "frontier_configured": false
+  },
+  "integrity": {
+    "training_manifest_sha256": "e041e98de134a85947795285db140cfdf04c9aa984dda4ff7c893c935b21d2ab",
+    "adapter_model_safetensors_sha256": "71d20038fd56065bfc278f7c35d4e04030d3e9258ad5dbf4c6422c2df405668e",
+    "config_sha256": "7c5e155e74b07d526d72c36166e4991cc83f42a8e0a71a714a10b700b24b911f",
+    "train_file_sha256": "b0227cdf59034e18b0690aaba974fc1e8a92a03a49d05f3bfd1cda3d16427559",
+    "validation_file_sha256": "d62352a575ffd1afe08badb3acbc6f7f02d1b89965bb2f393166b0782e05418a",
+    "prompt_sha256": "5a9a05a40f74ec7f580d49bf8b8d4b5219ae72d25033d4c8d11585522707ae61",
+    "private_archive_commit": "97237708437f82d2e98ac7ac6e492474d7fcbdc4",
+    "verified_file_count": 31,
+    "commit_pinned_redownload_hash_check": true
+  },
+  "privacy": {
+    "dataset_is_synthetic": true,
+    "ticket_text_published": false,
+    "request_or_response_bodies_published": false,
+    "adapter_or_checkpoint_weights_published": false,
+    "private_archive_location_published": false,
+    "access_token_published": false
+  },
+  "limitations": [
+    "This run establishes pipeline execution and content-addressed provenance, not model-quality improvement.",
+    "The FastAPI result is one in-process contract smoke, not a deployment or load test.",
+    "Routing was exercised with deterministic fixtures and remains explicitly uncalibrated.",
+    "No frontier provider, locked-test inference, real-ticket data, or production deployment was used.",
+    "Reproducible means pinned and content-addressed provenance, not bitwise-identical CUDA output."
+  ]
+}

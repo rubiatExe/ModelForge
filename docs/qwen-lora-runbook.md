@@ -1,9 +1,9 @@
 # Qwen LoRA Evidence Runbook
 
 This is the operational procedure for converting the configured Qwen LoRA
-pipeline into reproducible evidence. It deliberately contains no result claims:
-the model, adapter, metrics, and routing policy remain unmeasured until this
-procedure completes.
+pipeline into reproducible evidence. Results count only when they are linked to
+the required artifacts. A minimal hosted implementation run is recorded below;
+it does not establish model quality or calibrated routing.
 
 ## Pinned candidate
 
@@ -34,6 +34,34 @@ through FastAPI's in-process `TestClient`, and
 exercises the router's high-confidence local and escalation-required
 fail-closed branches with deterministic fixtures. Those three JSON artifacts
 contain hashes and control facts, not ticket or model-response bodies.
+
+### Recorded hosted implementation run
+
+On September 6, 2026, the minimal workflow completed on a standard-memory
+NVIDIA T4 from clean source commit
+`1318d24565af63faf7748d8d85b2ec0aede50c52`. It trained a rank-16 PEFT/LoRA
+adapter for one epoch across all 500 manifest-verified synthetic training rows.
+The pinned-tokenizer response-mask audit covered 500/500 rows, and the training
+manifest recorded zero truncated training and validation examples. A one-case
+pinned-base CUDA preflight completed without operational error.
+
+The manifest-linked adapter then served the predeclared synthetic case
+`MF-VA-0001` once through FastAPI's in-process `TestClient`, returning HTTP 200
+and validating against `TriageResult`. Three deterministic routing fixtures
+exercised one local and two fail-closed branches; routing remained explicitly
+uncalibrated. The allowlisted evidence bundle was stored privately and
+re-downloaded from exact archive commit
+`97237708437f82d2e98ac7ac6e492474d7fcbdc4`; all 31 downloaded files matched the
+bundle's SHA-256 evidence index. The private repository location, access token,
+model weights, ticket text, and request/response bodies are intentionally not
+published.
+
+The public-safe machine-readable summary is
+[`qwen-lora-colab-implementation-v1.json`](../experiments/results/qwen-lora-colab-implementation-v1.json).
+This run supports implementation and provenance claims only. It does not
+establish model-quality improvement, calibrated confidence, successful
+frontier routing, throughput or load performance, zero cost, production
+readiness, real-data performance, or locked-test performance.
 
 Before opening the notebook:
 
