@@ -53,7 +53,7 @@ modelforge = ["py.typed"]
 
 [tool.pytest.ini_options]
 addopts = "-ra --strict-markers --strict-config"
-pythonpath = ["src"]
+pythonpath = ["src", "."]
 testpaths = ["tests"]
 markers = [
   "integration: crosses multiple ModelForge components",

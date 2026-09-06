@@ -27,6 +27,16 @@ def _code() -> str:
     )
 
 
+def _markdown() -> str:
+    cells = _notebook()["cells"]
+    assert isinstance(cells, list)
+    return "\n\n".join(
+        "".join(cell.get("source", []))
+        for cell in cells
+        if isinstance(cell, dict) and cell.get("cell_type") == "markdown"
+    )
+
+
 def test_colab_notebook_is_unexecuted_valid_python() -> None:
     notebook = _notebook()
     assert notebook["nbformat"] == 4
@@ -44,6 +54,7 @@ def test_colab_notebook_is_unexecuted_valid_python() -> None:
 
 def test_colab_notebook_has_fail_closed_privacy_and_provenance_guards() -> None:
     code = _code()
+    markdown = _markdown()
     lowered = code.lower()
     for forbidden in (
         "drive.mount",
@@ -59,8 +70,28 @@ def test_colab_notebook_has_fail_closed_privacy_and_provenance_guards() -> None:
     assert "HF_HUB_DISABLE_IMPLICIT_TOKEN" in code
     assert "verify_git_checkout" in code
     assert "verify_training_manifest" in code
+    assert "verify_response_only_mask_audit" in code
     assert "prepare_evidence_bundle" in code
     assert "verify_downloaded_bundle" in code
+    assert "ZERO_COST_CONFIRMED = False" in code
+    assert "if not ZERO_COST_CONFIRMED" in code
+    assert "Code cannot inspect billing" in code
+    assert "compute-unit balance is 0 or exhausted" in code
+    assert "before you press Connect" in markdown
+    assert "attestation, not a technical billing control" in markdown
+    assert "confidence-routing-smoke" in code
+    assert "response-mask-audit" in code
+    assert "adapter-api-smoke" in code
+    assert '"--local-files-only"' in code
+    assert code.index("response-mask-audit") < code.index("modelforge.training.train_lora")
+    assert code.index("adapter-validation") < code.index("adapter-api-smoke")
+    assert code.index("adapter-api-smoke") < code.index("final-validation")
+    for artifact_name in (
+        "response-only-mask-audit.json",
+        "confidence-routing-smoke.json",
+        "adapter-api-smoke.json",
+    ):
+        assert artifact_name in code
     assert "private" in lowered
     assert "REMOTE_RUN_PATH" in code
     assert QWEN_REVISION in code
