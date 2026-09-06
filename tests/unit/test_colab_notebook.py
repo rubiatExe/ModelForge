@@ -77,6 +77,8 @@ def test_colab_notebook_has_fail_closed_privacy_and_provenance_guards() -> None:
     assert '[*VENV_PIP, "check"]' in code
     assert '[*VENV_PIP, "freeze", "--all"]' in code
     assert '"installer_pip": subprocess.check_output(' in code
+    assert 'run_env["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"' in code
+    assert '"pytorch_cuda_alloc_conf": run_env["PYTORCH_CUDA_ALLOC_CONF"]' in code
     assert '[str(VENV_PYTHON), "-m", "pip"' not in code
     assert "HF_HUB_DISABLE_IMPLICIT_TOKEN" in code
     assert "verify_git_checkout" in code
@@ -133,6 +135,11 @@ def test_colab_config_and_lock_are_pinned() -> None:
     assert config["require_resolved_revision"] is True
     assert config["device"] == "cuda"
     assert config["epochs"] == 1
+    assert config["train_batch_size"] == 2
+    assert config["validation_batch_size"] == 4
+    assert config["gradient_accumulation_steps"] == 8
+    assert config["gradient_checkpointing"] is False
+    assert config["train_batch_size"] * config["gradient_accumulation_steps"] == 16
     assert config["output_root"].startswith("/content/")
 
     lock = LOCK_PATH.read_text(encoding="utf-8")

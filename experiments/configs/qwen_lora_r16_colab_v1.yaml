@@ -28,9 +28,11 @@ optimizer: adamw_torch
 learning_rate: 0.0002
 weight_decay: 0.01
 warmup_ratio: 0.03
-train_batch_size: 4
+# Keep the effective batch at 16 while leaving enough activation-memory
+# headroom for the variable-length training rows on a standard 15 GB T4.
+train_batch_size: 2
 validation_batch_size: 4
-gradient_accumulation_steps: 4
+gradient_accumulation_steps: 8
 gradient_checkpointing: false
 max_grad_norm: 1.0
 logging_steps: 10
