@@ -71,6 +71,13 @@ def test_colab_notebook_has_fail_closed_privacy_and_provenance_guards() -> None:
         assert forbidden not in lowered
     assert "subprocess.run" in code
     assert "check=True" in code
+    assert '"venv", "--without-pip"' in code
+    assert '"pip", "--python", str(VENV_PYTHON)' in code
+    assert '*VENV_PIP,\n        "install"' in code
+    assert '[*VENV_PIP, "check"]' in code
+    assert '[*VENV_PIP, "freeze", "--all"]' in code
+    assert '"installer_pip": subprocess.check_output(' in code
+    assert '[str(VENV_PYTHON), "-m", "pip"' not in code
     assert "HF_HUB_DISABLE_IMPLICIT_TOKEN" in code
     assert "verify_git_checkout" in code
     assert "verify_training_manifest" in code
