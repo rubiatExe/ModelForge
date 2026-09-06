@@ -63,6 +63,10 @@ def test_colab_notebook_has_fail_closed_privacy_and_provenance_guards() -> None:
         "--confirm-locked-test",
         '"--split", "test"',
         "trust_remote_code=true",
+        "validate_paired_evaluations",
+        "base-validation",
+        "adapter-validation",
+        "--adapter-evaluation",
     ):
         assert forbidden not in lowered
     assert "subprocess.run" in code
@@ -73,19 +77,30 @@ def test_colab_notebook_has_fail_closed_privacy_and_provenance_guards() -> None:
     assert "verify_response_only_mask_audit" in code
     assert "prepare_evidence_bundle" in code
     assert "verify_downloaded_bundle" in code
-    assert "ZERO_COST_CONFIRMED = False" in code
-    assert "if not ZERO_COST_CONFIRMED" in code
+    assert "INCLUDED_UNITS_APPROVED = False" in code
+    assert "if not INCLUDED_UNITS_APPROVED" in code
     assert "Code cannot inspect billing" in code
-    assert "compute-unit balance is 0 or exhausted" in code
+    assert "existing included-unit balance" in code
+    assert '"new_purchase_authorized": False' in code
     assert "before you press Connect" in markdown
     assert "attestation, not a technical billing control" in markdown
     assert "confidence-routing-smoke" in code
     assert "response-mask-audit" in code
     assert "adapter-api-smoke" in code
-    assert '"--local-files-only"' in code
+    assert 'run_env["HF_HUB_OFFLINE"] = "1"' in code
+    assert 'run_env["TRANSFORMERS_OFFLINE"] = "1"' in code
+    assert '"--max-new-tokens",\n        "256"' in code
+    assert 'evaluation_files={"base-preflight.json": preflight_result}' in code
+    assert code.count("modelforge.experiments.run_evaluation") == 1
+    assert code.index("modelforge.experiments.run_evaluation") < code.index(
+        'run_env["HF_HUB_OFFLINE"]'
+    )
     assert code.index("response-mask-audit") < code.index("modelforge.training.train_lora")
-    assert code.index("adapter-validation") < code.index("adapter-api-smoke")
-    assert code.index("adapter-api-smoke") < code.index("final-validation")
+    assert code.index('run_env["HF_HUB_OFFLINE"]') < code.index("response-mask-audit")
+    assert code.index('run_env["TRANSFORMERS_OFFLINE"]') < code.index(
+        "modelforge.training.train_lora"
+    )
+    assert code.index("adapter-api-smoke") < code.index("final-evidence")
     for artifact_name in (
         "response-only-mask-audit.json",
         "confidence-routing-smoke.json",
@@ -110,6 +125,7 @@ def test_colab_config_and_lock_are_pinned() -> None:
     assert config["local_files_only"] is False
     assert config["require_resolved_revision"] is True
     assert config["device"] == "cuda"
+    assert config["epochs"] == 1
     assert config["output_root"].startswith("/content/")
 
     lock = LOCK_PATH.read_text(encoding="utf-8")

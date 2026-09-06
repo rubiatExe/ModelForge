@@ -16,6 +16,7 @@ from modelforge.training.manifest import (
     GitMetadata,
     HardwareMetadata,
     LossHistory,
+    MetricPoint,
     OverfittingSignal,
     ParameterCounts,
     canonical_sha256,
@@ -111,13 +112,16 @@ def _write_training_run(
 ) -> Path:
     run_directory = tmp_path / "runs" / run_id
     adapter = run_directory / "adapter" / "adapter_config.json"
+    adapter_weights = run_directory / "adapter" / "adapter_model.safetensors"
     checkpoint = run_directory / "checkpoints" / "trainer_state.json"
     adapter.parent.mkdir(parents=True)
     checkpoint.parent.mkdir(parents=True)
     adapter.write_text('{"adapter":true}\n', encoding="utf-8")
+    adapter_weights.write_bytes(b"fixture-safetensors")
     checkpoint.write_text('{"step":10}\n', encoding="utf-8")
     artifacts = {
         "adapter/adapter_config.json": sha256_file(adapter),
+        "adapter/adapter_model.safetensors": sha256_file(adapter_weights),
         "checkpoints/trainer_state.json": sha256_file(checkpoint),
     }
     config = {
@@ -129,6 +133,14 @@ def _write_training_run(
         "trust_remote_code": False,
         "require_resolved_revision": True,
         "device": "cuda",
+        "epochs": 1.0,
+        "lora": {
+            "rank": 16,
+            "alpha": 32,
+            "dropout": 0.05,
+            "bias": "none",
+            "target_modules": ["q_proj", "k_proj", "v_proj", "o_proj"],
+        },
         "output_root": str(run_directory.parent),
     }
     manifest = ExperimentManifest(
@@ -157,10 +169,18 @@ def _write_training_run(
             accelerator_name="Tesla T4",
         ),
         git=GitMetadata(commit_sha=source_sha, dirty=False),
-        packages={"torch": "fixture"},
-        losses=LossHistory(),
+        packages={
+            "torch": "fixture",
+            "transformers": "fixture",
+            "peft": "fixture",
+            "accelerate": "fixture",
+        },
+        losses=LossHistory(
+            training=(MetricPoint(step=1, epoch=1.0, value=1.0),),
+            validation=(MetricPoint(step=1, epoch=1.0, value=0.9),),
+        ),
         overfitting=OverfittingSignal(detected=False, reason="fixture"),
-        trainer_metrics={"train_loss": 1.0},
+        trainer_metrics={"train_loss": 1.0, "eval_loss": 0.9},
         artifacts_sha256=artifacts,
         truncated_training_examples=0,
         truncated_validation_examples=0,
@@ -271,6 +291,7 @@ def test_completed_training_run_rehashes_every_artifact(tmp_path: Path) -> None:
     assert training.manifest_sha256 == sha256_file(manifest_path)
     assert set(training.artifact_hashes) == {
         "adapter/adapter_config.json",
+        "adapter/adapter_model.safetensors",
         "checkpoints/trainer_state.json",
     }
     summary = verify_training_manifest(
@@ -321,6 +342,7 @@ def test_bundle_contains_only_allowlisted_files_and_deterministic_index(tmp_path
         "environment/pip-freeze.txt",
         "evaluations/base-validation.json",
         "training/qwen-colab-run-001/adapter/adapter_config.json",
+        "training/qwen-colab-run-001/adapter/adapter_model.safetensors",
         "training/qwen-colab-run-001/checkpoints/trainer_state.json",
         "training/qwen-colab-run-001/manifest.json",
     }

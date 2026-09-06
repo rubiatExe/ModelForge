@@ -21,7 +21,9 @@ max_length: 1024
 minimum_response_tokens: 16
 training_confidence: 0.5
 
-epochs: 3
+# One full pass is the predeclared minimum for implementation evidence; this
+# run makes no quality-improvement claim.
+epochs: 1
 optimizer: adamw_torch
 learning_rate: 0.0002
 weight_decay: 0.01

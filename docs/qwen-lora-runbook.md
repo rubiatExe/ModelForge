@@ -29,7 +29,8 @@ then copies only approved evidence files into a dedicated bundle, scans the
 bundle for Hugging Face token-like values and secret-like filenames, and writes
 a SHA-256 evidence index.
 It also runs the real pinned Qwen tokenizer across every training row, executes
-one adapter-backed request through FastAPI's in-process `TestClient`, and
+one adapter-backed request on the predeclared validation case `MF-VA-0001`
+through FastAPI's in-process `TestClient`, and
 exercises the router's high-confidence local and escalation-required
 fail-closed branches with deterministic fixtures. Those three JSON artifacts
 contain hashes and control facts, not ticket or model-response bodies.
@@ -45,21 +46,26 @@ Before opening the notebook:
    runtime pins Python 3.12 and PyTorch 2.11, matching the compiled CUDA 12.8
    lock. If that runtime is no longer offered, regenerate and review the lock
    for the replacement runtime before training.
-4. Check the Colab compute-unit balance before connecting. For strict zero-unit
-   operation it must be `0` or exhausted; Colab documents no free-tier opt-out
-   while a positive balance remains. Then verify that Colab assigned a
-   free-tier, standard-memory T4 and that you did not select Premium GPU, High
-   RAM, a GCP runtime, or an Enterprise runtime. Notebook code cannot inspect
-   billing. Leave `ZERO_COST_CONFIRMED = False` and stop if either condition is
-   unclear; change it to `True` only after this manual check.
+4. Check the Colab compute-unit balance before connecting and obtain explicit
+   approval to deduct this run from that existing balance. Select a
+   standard-memory T4 only. Do not purchase more units, upgrade the plan, or
+   select Premium GPU, High RAM, a GCP runtime, or an Enterprise runtime.
+   Notebook code cannot inspect billing. Leave `INCLUDED_UNITS_APPROVED =
+   False` and stop if any condition is unclear; change it to `True` only after
+   the included-unit use is approved.
 5. Choose a fresh `RUN_ID`. The remote path includes both the source SHA and run
    ID, and the notebook refuses to overwrite an existing prefix.
 
-The first hosted run stops after complete base and adapter validation. It does
-not expose the locked test split or claim calibrated routing. The persisted
-routing smoke is explicitly fixture-based control-flow evidence. Once the
-final private upload and checksum verification succeed, disconnect and delete
-the Colab runtime, then revoke the short-lived token.
+The hosted evidence run trains for one epoch across all 500 manifest-verified
+training rows. It performs one base-model preflight with at most 256 generated
+tokens, then switches all later model subprocesses to Hugging Face and
+Transformers offline modes so they can use only the verified temporary cache.
+It deliberately skips full base/adapter generation evaluation because the
+implementation bullet makes no quality or improvement claim. It performs no
+model inference or evaluation on the locked test split and does not claim
+calibrated routing. Once the final private upload and checksum verification
+succeed, disconnect and delete the Colab runtime, then revoke the short-lived
+token.
 
 ## Before downloading or training
 
@@ -105,8 +111,10 @@ Immediately archive the whole run directory to immutable storage and retain its
 archive URI and SHA-256 alongside the manifest. Do not commit model weights or
 ticket-bearing evaluation output to Git without a privacy review.
 
-## Evaluate before touching the locked test split
+## Optional quality evaluation before touching the locked test split
 
+This stage is not part of the minimal hosted implementation-evidence run. Run it
+later only if making a measured model-quality or base-versus-adapter comparison.
 Evaluate the pinned base model and the exact adapter on the complete validation
 split. The adapter command requires its training manifest and rehashes the
 adapter files before it will write an evaluation artifact.
@@ -148,10 +156,13 @@ after inspecting test results.
 ## Router and service evidence
 
 The Colab run produces two deliberately narrow service artifacts. The
-adapter-backed FastAPI smoke proves that one manifest-linked adapter request
-returned HTTP 200, validated as `TriageResult`, and carried the expected
-`X-ModelForge-Model` header. The uncalibrated routing smoke proves that the real
-router keeps a high-scoring deterministic fixture local and raises a typed
+adapter-backed FastAPI smoke revalidates the complete validation manifest,
+split hash, and case-set hash, then proves that one request for the predeclared
+case `MF-VA-0001` returned HTTP 200, validated as `TriageResult`, and carried
+the expected `X-ModelForge-Model` header. It loads the manifest-linked adapter
+from the verified cache with `local_files_only=True` and allows at most 256 new
+tokens. The uncalibrated routing smoke proves that the real router keeps a
+high-scoring deterministic fixture local and raises a typed
 `FrontierUnavailableError` for low-confidence and local-model-error fixtures
 when no frontier is configured. It is labeled `result_status: fixture`, records
 `confidence_is_probability: false`, and makes no calibration claim.
@@ -182,11 +193,14 @@ routing policy so the policy cannot be attached to a different serving model.
 | --- | --- |
 | Full pinned-tokenizer mask audit + linked training manifest | Applied response-only supervision to every manifest-verified training row without truncation in that run. |
 | Training manifest + archived adapter | Fine-tuned a Qwen2.5-0.5B adapter with LoRA. |
+| One-case base preflight | Loaded and exercised the pinned Qwen base model on the recorded CUDA runtime; this is not quality evidence. |
 | Base and adapter validation artifacts | Evaluated base and LoRA candidates on the versioned synthetic benchmark. |
-| Adapter FastAPI smoke artifact | Served one schema-valid, manifest-linked adapter response through the in-process FastAPI contract. |
+| Adapter FastAPI smoke artifact | Served the predeclared validation case as one schema-valid, manifest-linked adapter response through the in-process FastAPI/Pydantic contract. |
 | Uncalibrated routing smoke artifact | Exercised local and fail-closed router control-flow branches with deterministic fixtures; this does not establish calibration. |
 | Predeclared policy + fixed locked-test reports | Reported the corresponding measured metrics on the locked synthetic test set. |
 | Paired frontier sweep + locked routing policy | Implemented and validation-selected a selective frontier-fallback policy. |
 
 Every statement remains limited to the synthetic IAM benchmark until a separate
 privacy-reviewed, human-annotated dataset provides real-ticket evidence.
+The minimal hosted run alone does not support claims of quality improvement,
+benchmark performance, calibrated confidence, or production readiness.

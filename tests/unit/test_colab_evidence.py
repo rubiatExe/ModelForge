@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import re
 import shutil
@@ -11,7 +12,6 @@ from pathlib import Path
 import pytest
 
 from modelforge.datasets import load_training_examples, load_validation_examples
-from modelforge.experiments.run_evaluation import run_model_evaluation
 from modelforge.models import HeuristicTriageModel, HuggingFaceModelConfig
 from modelforge.models.prompting import load_iam_prompt
 from modelforge.training.config import load_training_config
@@ -20,6 +20,7 @@ from modelforge.training.manifest import (
     GitMetadata,
     HardwareMetadata,
     LossHistory,
+    MetricPoint,
     OverfittingSignal,
     ParameterCounts,
     canonical_sha256,
@@ -29,6 +30,7 @@ from modelforge.training.manifest import (
 from scripts.colab_workflow import (
     QWEN_MODEL_ID,
     QWEN_REVISION,
+    SMOKE_VALIDATION_CASE_ID,
     AdapterApiSmokeArtifact,
     ColabWorkflowError,
     ConfidenceRoutingSmokeArtifact,
@@ -110,9 +112,11 @@ def _clean_project(tmp_path: Path) -> tuple[Path, str]:
 
 def _training_run(tmp_path: Path, *, source_sha: str, project_root: Path) -> Path:
     run_directory = tmp_path / "runs" / RUN_ID
-    adapter = run_directory / "adapter" / "adapter_config.json"
-    adapter.parent.mkdir(parents=True)
-    adapter.write_text('{"adapter":true}\n', encoding="utf-8")
+    adapter_config = run_directory / "adapter" / "adapter_config.json"
+    adapter_weights = run_directory / "adapter" / "adapter_model.safetensors"
+    adapter_config.parent.mkdir(parents=True)
+    adapter_config.write_text('{"adapter":true}\n', encoding="utf-8")
+    adapter_weights.write_bytes(b"fixture-safetensors")
     config = {
         "experiment_name": RUN_ID,
         "model_name_or_path": QWEN_MODEL_ID,
@@ -122,6 +126,14 @@ def _training_run(tmp_path: Path, *, source_sha: str, project_root: Path) -> Pat
         "trust_remote_code": False,
         "require_resolved_revision": True,
         "device": "cuda",
+        "epochs": 1.0,
+        "lora": {
+            "rank": 16,
+            "alpha": 32,
+            "dropout": 0.05,
+            "bias": "none",
+            "target_modules": ["q_proj", "k_proj", "v_proj", "o_proj"],
+        },
         "output_root": str(run_directory.parent),
         "train_data": str(project_root / "data/iam_triage_v1/train.jsonl"),
         "validation_data": str(project_root / "data/iam_triage_v1/validation.jsonl"),
@@ -155,41 +167,28 @@ def _training_run(tmp_path: Path, *, source_sha: str, project_root: Path) -> Pat
             accelerator_name="Tesla T4",
         ),
         git=GitMetadata(commit_sha=source_sha, dirty=False),
-        packages={"torch": "fixture"},
-        losses=LossHistory(),
+        packages={
+            "torch": "fixture",
+            "transformers": "fixture",
+            "peft": "fixture",
+            "accelerate": "fixture",
+        },
+        losses=LossHistory(
+            training=(MetricPoint(step=1, epoch=1.0, value=1.0),),
+            validation=(MetricPoint(step=1, epoch=1.0, value=0.9),),
+        ),
         overfitting=OverfittingSignal(detected=False, reason="fixture"),
-        trainer_metrics={"train_loss": 1.0},
-        artifacts_sha256={"adapter/adapter_config.json": sha256_file(adapter)},
+        trainer_metrics={"train_loss": 1.0, "eval_loss": 0.9},
+        artifacts_sha256={
+            "adapter/adapter_config.json": sha256_file(adapter_config),
+            "adapter/adapter_model.safetensors": sha256_file(adapter_weights),
+        },
         truncated_training_examples=0,
         truncated_validation_examples=0,
     )
     manifest_path = run_directory / "manifest.json"
     write_manifest_once(manifest_path, manifest)
     return manifest_path
-
-
-class _MeasuredAdapterFixture(HeuristicTriageModel):
-    role = "small"
-
-    def __init__(self, adapter_path: Path) -> None:
-        self.model_id = "small-iam-triage-v1"
-        self.config = HuggingFaceModelConfig(
-            model_name_or_path=QWEN_MODEL_ID,
-            revision=QWEN_REVISION,
-            adapter_name_or_path=str(adapter_path),
-            serving_id=self.model_id,
-            device="cuda",
-        )
-
-    async def triage(self, ticket, *, timeout_s=None):
-        prediction = await super().triage(ticket, timeout_s=timeout_s)
-        return prediction.model_copy(
-            update={
-                "model_id": self.model_id,
-                "model_version": "adapter-evaluation-fixture-v1",
-                "role": self.role,
-            }
-        )
 
 
 class _FastApiAdapterFixture:
@@ -199,6 +198,7 @@ class _FastApiAdapterFixture:
         assert config.adapter_name_or_path is not None
         assert config.local_files_only is True
         assert config.trust_remote_code is False
+        assert config.max_new_tokens == 256
         self.config = config
         self.model_id = config.serving_id
         self.closed = False
@@ -304,18 +304,6 @@ def test_adapter_api_smoke_uses_testclient_and_redacts_bodies(
 ) -> None:
     project, source_sha = _clean_project(tmp_path)
     manifest_path = _training_run(tmp_path, source_sha=source_sha, project_root=project)
-    adapter_evaluation = tmp_path / "adapter-validation.json"
-    asyncio.run(
-        run_model_evaluation(
-            model=_MeasuredAdapterFixture(manifest_path.parent / "adapter"),
-            backend="hf-adapter",
-            dataset_root=project / "data/iam_triage_v1",
-            split="validation",
-            output_path=adapter_evaluation,
-            experiment_id="adapter-validation-fixture",
-            training_manifest_path=manifest_path,
-        )
-    )
     import modelforge.models.huggingface as huggingface
 
     monkeypatch.setattr(huggingface, "HuggingFaceTriageModel", _FastApiAdapterFixture)
@@ -323,7 +311,6 @@ def test_adapter_api_smoke_uses_testclient_and_redacts_bodies(
     assert (
         run_adapter_api_smoke(
             manifest_path,
-            adapter_evaluation,
             output,
             dataset_root=project / "data/iam_triage_v1",
             project_root=project,
@@ -340,14 +327,26 @@ def test_adapter_api_smoke_uses_testclient_and_redacts_bodies(
     assert artifact.response_schema_name == "TriageResult"
     assert artifact.response_schema_validated is True
     assert artifact.transport == "fastapi.testclient.TestClient"
+    assert artifact.max_new_tokens == 256
+    assert artifact.validation_case_predeclared is True
+    assert artifact.validation_case_count == 100
     assert artifact.request_body_persisted is False
     assert artifact.response_body_persisted is False
     serialized = output.read_text(encoding="utf-8")
-    selected = min(
-        load_validation_examples(project / "data/iam_triage_v1"),
-        key=lambda example: str(example.example_id),
+    examples = load_validation_examples(project / "data/iam_triage_v1")
+    selected = next(
+        example for example in examples if str(example.example_id) == SMOKE_VALIDATION_CASE_ID
     )
     assert artifact.validation_case_id == str(selected.example_id)
+    expected_case_hash = hashlib.sha256(
+        "".join(
+            f"{example_id}\n" for example_id in sorted(str(e.example_id) for e in examples)
+        ).encode("utf-8")
+    ).hexdigest()
+    assert artifact.validation_case_ids_sha256 == expected_case_hash
+    dataset_root = project / "data/iam_triage_v1"
+    assert artifact.dataset_manifest_sha256 == sha256_file(dataset_root / "manifest.json")
+    assert artifact.validation_split_file_sha256 == sha256_file(dataset_root / "validation.jsonl")
     prediction = asyncio.run(HeuristicTriageModel().triage(selected.ticket)).result
     private_fragments = (
         selected.ticket.subject,
@@ -376,6 +375,22 @@ def test_bundle_places_named_evidence_only_under_audits(tmp_path: Path) -> None:
     )
     assert (bundle.root / "audits/routing-smoke.json").read_bytes() == audit.read_bytes()
     assert "audits/routing-smoke.json" in bundle.files_sha256
+
+
+def test_training_evidence_rejects_non_lora_or_unmeasured_manifest(tmp_path: Path) -> None:
+    project, source_sha = _clean_project(tmp_path)
+    manifest_path = _training_run(tmp_path, source_sha=source_sha, project_root=project)
+    raw = json.loads(manifest_path.read_text(encoding="utf-8"))
+    raw["parameter_counts"]["trainable"] = 0
+    raw["parameter_counts"]["trainable_fraction"] = 0.0
+    manifest_path.write_text(json.dumps(raw), encoding="utf-8")
+
+    with pytest.raises(ColabWorkflowError, match="parameter-efficient training"):
+        validate_completed_training_run(
+            manifest_path,
+            expected_source_sha=source_sha,
+            expected_run_id=RUN_ID,
+        )
 
 
 def test_mask_audit_artifact_rejects_incomplete_coverage() -> None:

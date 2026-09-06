@@ -11,6 +11,7 @@ import argparse
 import asyncio
 import hashlib
 import json
+import math
 import os
 import re
 import shutil
@@ -38,6 +39,7 @@ EXPECTED_VALIDATION_CASES = 100
 EVIDENCE_INDEX_NAME = "evidence-index.sha256"
 MAX_TEXT_SCAN_BYTES = 16 * 1024 * 1024
 SERVING_MODEL_ID = "small-iam-triage-v1"
+SMOKE_VALIDATION_CASE_ID = "MF-VA-0001"
 
 _SHA40 = re.compile(r"^[0-9a-f]{40}$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
@@ -153,7 +155,7 @@ class ResponseOnlyMaskAuditArtifact(StrictBaseModel):
 class AdapterApiSmokeArtifact(StrictBaseModel):
     """Measured, content-redacted proof that FastAPI served the local adapter."""
 
-    artifact_version: Literal["1.0"] = "1.0"
+    artifact_version: Literal["1.1"] = "1.1"
     artifact_type: Literal["adapter_fastapi_smoke"] = "adapter_fastapi_smoke"
     result_status: Literal["measured"] = "measured"
     completed_at: datetime
@@ -161,10 +163,14 @@ class AdapterApiSmokeArtifact(StrictBaseModel):
     run_id: str
     training_manifest_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     adapter_artifacts_sha256: dict[str, str]
-    adapter_evaluation_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    dataset_manifest_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    dataset_name: str
+    dataset_version: str
     validation_split_file_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     validation_case_ids_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
-    validation_case_id: str
+    validation_case_count: Literal[EXPECTED_VALIDATION_CASES]
+    validation_case_id: Literal[SMOKE_VALIDATION_CASE_ID]
+    validation_case_predeclared: Literal[True]
     model_name_or_path: Literal[QWEN_MODEL_ID]
     model_revision: Literal[QWEN_REVISION]
     tokenizer_revision: Literal[QWEN_REVISION]
@@ -172,6 +178,7 @@ class AdapterApiSmokeArtifact(StrictBaseModel):
     device: str = Field(pattern=r"^cuda(?::[0-9]+)?$")
     local_files_only: Literal[True]
     trust_remote_code: Literal[False]
+    max_new_tokens: Literal[256]
     application_factory: Literal["modelforge.api.app.create_app"]
     transport: Literal["fastapi.testclient.TestClient"]
     network_socket_bound: Literal[False]
@@ -270,6 +277,17 @@ class ValidatedTrainingRun:
     manifest_sha256: str
     run_directory: Path
     artifact_hashes: Mapping[str, str]
+
+
+@dataclass(frozen=True, slots=True)
+class ValidatedSmokeDataset:
+    dataset_name: str
+    dataset_version: str
+    manifest_sha256: str
+    split_file_sha256: str
+    case_ids_sha256: str
+    case_count: int
+    example: Any
 
 
 @dataclass(frozen=True, slots=True)
@@ -984,6 +1002,7 @@ def validate_completed_training_run(
         "trust_remote_code": False,
         "require_resolved_revision": True,
         "device": "cuda",
+        "epochs": 1.0,
     }
     for field, expected in protected_config.items():
         if config.get(field) != expected:
@@ -995,7 +1014,47 @@ def validate_completed_training_run(
     if not output_root.is_absolute() or output_root.resolve(strict=True) != run_directory.parent:
         raise ColabWorkflowError("training manifest output root does not match the run location")
 
+    expected_lora = {
+        "rank": 16,
+        "alpha": 32,
+        "dropout": 0.05,
+        "bias": "none",
+        "target_modules": ["q_proj", "k_proj", "v_proj", "o_proj"],
+    }
+    if config.get("lora") != expected_lora:
+        raise ColabWorkflowError("training manifest does not record the reviewed LoRA setup")
+    counts = manifest.parameter_counts
+    if not (0 < counts.trainable < counts.total and 0.0 < counts.trainable_fraction < 1.0):
+        raise ColabWorkflowError("training manifest does not prove parameter-efficient training")
+    expected_fraction = counts.trainable / counts.total
+    if not math.isclose(counts.trainable_fraction, expected_fraction, rel_tol=1e-12):
+        raise ColabWorkflowError("training manifest parameter counts are inconsistent")
+    for package in ("torch", "transformers", "peft", "accelerate"):
+        version = manifest.packages.get(package)
+        if not isinstance(version, str) or not version or version == "not-installed":
+            raise ColabWorkflowError(f"training manifest does not record installed {package}")
+    if not manifest.losses.training or not manifest.losses.validation:
+        raise ColabWorkflowError("training manifest lacks measured train or validation loss")
+    recorded_losses = [
+        point.value for point in (*manifest.losses.training, *manifest.losses.validation)
+    ]
+    if not all(math.isfinite(value) for value in recorded_losses):
+        raise ColabWorkflowError("training manifest contains a non-finite loss")
+    for metric in ("train_loss", "eval_loss"):
+        value = manifest.trainer_metrics.get(metric)
+        if (
+            not isinstance(value, (int, float))
+            or isinstance(value, bool)
+            or not math.isfinite(value)
+        ):
+            raise ColabWorkflowError(f"training manifest lacks a finite {metric}")
+
     hashes = _declared_artifact_hashes(run_directory, path, manifest.artifacts_sha256)
+    adapter_weights = hashes.get("adapter/adapter_model.safetensors")
+    if adapter_weights is None:
+        raise ColabWorkflowError("training manifest lacks hashed safetensors adapter weights")
+    if (run_directory / "adapter/adapter_model.safetensors").stat().st_size < 1:
+        raise ColabWorkflowError("training adapter weights are empty")
     return ValidatedTrainingRun(
         manifest=manifest,
         manifest_path=path.resolve(strict=True),
@@ -1287,92 +1346,70 @@ def validate_paired_validation_evaluations(
     return ValidatedEvaluationPair(base=base, adapter=adapter)
 
 
-def _validated_adapter_evaluation(
-    path: Path,
-    *,
-    training: ValidatedTrainingRun,
+def _validated_smoke_dataset(
     dataset_root: Path,
-) -> tuple[ModelEvaluationArtifact, Any]:
+    *,
+    project_root: Path,
+    training: ValidatedTrainingRun,
+) -> ValidatedSmokeDataset:
+    """Load and bind one predeclared smoke case to the complete validation split."""
+
     from modelforge.datasets import load_manifest, load_validation_examples
-    from modelforge.schemas import TriageResult
 
-    artifact = _read_evaluation(path)
-    if artifact.backend != "hf-adapter" or artifact.result_status != "measured":
-        raise ColabWorkflowError("API smoke requires a measured adapter evaluation")
-    if artifact.split != "validation" or artifact.test_lock_sha256 is not None:
-        raise ColabWorkflowError("API smoke may select a case only from validation")
-    if (
-        artifact.partial_run
-        or artifact.full_split_count != EXPECTED_VALIDATION_CASES
-        or artifact.evaluated_count != EXPECTED_VALIDATION_CASES
-    ):
-        raise ColabWorkflowError("API smoke requires the complete validation evaluation")
-    if artifact.operations.operational_errors != 0:
-        raise ColabWorkflowError("adapter evaluation contains operational model errors")
-    if artifact.model_id != SERVING_MODEL_ID:
-        raise ColabWorkflowError("adapter evaluation used an unexpected serving identity")
-    expected_model_config = {
-        "model_name_or_path": QWEN_MODEL_ID,
-        "revision": QWEN_REVISION,
-        "trust_remote_code": False,
-    }
-    for field, expected in expected_model_config.items():
-        if artifact.model_configuration.get(field) != expected:
-            raise ColabWorkflowError(f"adapter evaluation has an unexpected {field}")
-    device = artifact.model_configuration.get("device")
-    if not isinstance(device, str) or not re.fullmatch(r"cuda(?::[0-9]+)?", device):
-        raise ColabWorkflowError("adapter evaluation does not record a CUDA device")
-
-    expected_adapter_hashes = {
-        name.removeprefix("adapter/"): digest
-        for name, digest in training.artifact_hashes.items()
-        if name.startswith("adapter/")
-    }
-    provenance = artifact.training_run
-    if provenance is None or (
-        provenance.training_manifest_sha256 != training.manifest_sha256
-        or provenance.experiment_name != training.manifest.experiment_name
-        or provenance.resolved_model_revision != training.manifest.resolved_model_revision
-        or provenance.resolved_tokenizer_revision != training.manifest.resolved_tokenizer_revision
-        or provenance.adapter_artifacts_sha256 != expected_adapter_hashes
-    ):
-        raise ColabWorkflowError("adapter evaluation is not linked to the training run")
-
+    source_root = Path(project_root).resolve(strict=True)
     root = Path(dataset_root).resolve(strict=True)
+    configured_validation = training.manifest.config.get("validation_data")
+    if not isinstance(configured_validation, str):
+        raise ColabWorkflowError("training manifest does not identify validation data")
+    configured_validation_path = Path(configured_validation).resolve(strict=True)
+    if configured_validation_path.parent != root:
+        raise ColabWorkflowError("API smoke dataset differs from the trained validation dataset")
+    try:
+        root.relative_to(source_root)
+    except ValueError as exc:
+        raise ColabWorkflowError("API smoke dataset must be inside the verified checkout") from exc
+
+    manifest_path = root / "manifest.json"
+    if manifest_path.is_symlink() or not manifest_path.is_file():
+        raise ColabWorkflowError("validation dataset manifest must be a regular file")
     manifest = load_manifest(root)
     validation_split = next(
         (item for item in manifest.splits if item.split.value == "validation"),
         None,
     )
-    if validation_split is None or artifact.split_file_sha256 != validation_split.sha256:
-        raise ColabWorkflowError("adapter evaluation does not match the validation split")
+    if validation_split is None:
+        raise ColabWorkflowError("dataset manifest does not declare validation")
+    validation_path = (root / validation_split.file).resolve(strict=True)
+    if configured_validation_path != validation_path:
+        raise ColabWorkflowError("training manifest does not use the declared validation split")
+    if training.manifest.dataset_sha256.get("validation") != validation_split.sha256:
+        raise ColabWorkflowError("training manifest validation hash differs from the dataset")
+
     examples = load_validation_examples(root)
-    if {str(example.example_id) for example in examples} != {
-        item.case_id for item in artifact.evaluation.items
-    }:
-        raise ColabWorkflowError("adapter evaluation case IDs do not match validation")
-    scored_ids: list[str] = []
-    for item in artifact.evaluation.items:
-        status = getattr(item.status, "value", str(item.status))
-        if status != "scored" or item.schema_valid is not True or item.prediction is None:
-            continue
-        try:
-            TriageResult.model_validate(item.prediction)
-        except Exception as exc:
-            raise ColabWorkflowError("a scored adapter result fails the response schema") from exc
-        scored_ids.append(item.case_id)
-    if not scored_ids:
-        raise ColabWorkflowError(
-            "adapter evaluation has no schema-valid case for the API smoke test"
-        )
-    selected_id = min(scored_ids)
-    selected = next(example for example in examples if str(example.example_id) == selected_id)
-    return artifact, selected
+    if len(examples) != validation_split.count or len(examples) != EXPECTED_VALIDATION_CASES:
+        raise ColabWorkflowError("validation split does not have the expected complete case set")
+    case_ids = sorted(str(example.example_id) for example in examples)
+    if len(set(case_ids)) != len(case_ids):
+        raise ColabWorkflowError("validation case IDs are not unique")
+    matches = [
+        example for example in examples if str(example.example_id) == SMOKE_VALIDATION_CASE_ID
+    ]
+    if len(matches) != 1:
+        raise ColabWorkflowError("predeclared API smoke case is missing or duplicated")
+    case_ids_payload = "".join(f"{case_id}\n" for case_id in case_ids)
+    return ValidatedSmokeDataset(
+        dataset_name=manifest.dataset_name,
+        dataset_version=manifest.dataset_version,
+        manifest_sha256=sha256_file(manifest_path),
+        split_file_sha256=validation_split.sha256,
+        case_ids_sha256=hashlib.sha256(case_ids_payload.encode("utf-8")).hexdigest(),
+        case_count=len(examples),
+        example=matches[0],
+    )
 
 
 def run_adapter_api_smoke(
     training_manifest_path: Path,
-    adapter_evaluation_path: Path,
     output_path: Path,
     *,
     dataset_root: Path,
@@ -1392,11 +1429,12 @@ def run_adapter_api_smoke(
         expected_source_sha=source_commit,
         expected_run_id=run_id,
     )
-    adapter_evaluation, example = _validated_adapter_evaluation(
-        adapter_evaluation_path,
+    smoke_dataset = _validated_smoke_dataset(
+        dataset_root,
+        project_root=root,
         training=training,
-        dataset_root=dataset_root,
     )
+    example = smoke_dataset.example
 
     from fastapi.testclient import TestClient
 
@@ -1410,6 +1448,13 @@ def run_adapter_api_smoke(
     from modelforge.schemas import TriageResult
 
     adapter_directory = training.run_directory / "adapter"
+    adapter_hashes = {
+        name.removeprefix("adapter/"): digest
+        for name, digest in training.artifact_hashes.items()
+        if name.startswith("adapter/")
+    }
+    if not adapter_hashes:
+        raise ColabWorkflowError("training manifest contains no adapter artifacts")
     model = HuggingFaceTriageModel(
         HuggingFaceModelConfig(
             model_name_or_path=QWEN_MODEL_ID,
@@ -1418,6 +1463,7 @@ def run_adapter_api_smoke(
             serving_id=SERVING_MODEL_ID,
             device="cuda",
             precision="auto",
+            max_new_tokens=256,
             local_files_only=True,
             trust_remote_code=False,
         ),
@@ -1431,7 +1477,7 @@ def run_adapter_api_smoke(
             "threshold": 0.85,
             "small_model_id": SERVING_MODEL_ID,
             "frontier_model_id": "unconfigured-frontier",
-            "dataset_version": adapter_evaluation.dataset_version,
+            "dataset_version": smoke_dataset.dataset_version,
             "validation_run_id": None,
             "created_at": "2026-09-06T00:00:00Z",
             "notes": "API contract smoke only; not a calibrated routing policy.",
@@ -1479,21 +1525,20 @@ def run_adapter_api_smoke(
     if re.fullmatch(r"[0-9a-f]{32}", request_id) is None:
         raise ColabWorkflowError("FastAPI response lacks a valid request ID header")
 
-    adapter_hashes = {
-        name.removeprefix("adapter/"): digest
-        for name, digest in training.artifact_hashes.items()
-        if name.startswith("adapter/")
-    }
     artifact = AdapterApiSmokeArtifact(
         completed_at=datetime.now(UTC),
         source_commit=validate_commit_sha(source_commit),
         run_id=validate_run_id(run_id),
         training_manifest_sha256=training.manifest_sha256,
         adapter_artifacts_sha256=adapter_hashes,
-        adapter_evaluation_sha256=sha256_file(Path(adapter_evaluation_path)),
-        validation_split_file_sha256=adapter_evaluation.split_file_sha256,
-        validation_case_ids_sha256=adapter_evaluation.case_ids_sha256,
+        dataset_manifest_sha256=smoke_dataset.manifest_sha256,
+        dataset_name=smoke_dataset.dataset_name,
+        dataset_version=smoke_dataset.dataset_version,
+        validation_split_file_sha256=smoke_dataset.split_file_sha256,
+        validation_case_ids_sha256=smoke_dataset.case_ids_sha256,
+        validation_case_count=smoke_dataset.case_count,
         validation_case_id=str(example.example_id),
+        validation_case_predeclared=True,
         model_name_or_path=QWEN_MODEL_ID,
         model_revision=QWEN_REVISION,
         tokenizer_revision=QWEN_REVISION,
@@ -1501,6 +1546,7 @@ def run_adapter_api_smoke(
         device="cuda",
         local_files_only=True,
         trust_remote_code=False,
+        max_new_tokens=256,
         application_factory="modelforge.api.app.create_app",
         transport="fastapi.testclient.TestClient",
         network_socket_bound=False,
@@ -1521,7 +1567,8 @@ def run_adapter_api_smoke(
         passed=True,
         limitations=(
             "This is one in-process API contract smoke, not a load or deployment test.",
-            "The selected input comes from the synthetic validation split.",
+            "The predeclared input comes from the synthetic validation split.",
+            "This artifact makes no model-quality, improvement, or calibration claim.",
             "No request or response content is retained in this artifact.",
         ),
     )
@@ -1913,7 +1960,6 @@ def _build_cli_parser() -> argparse.ArgumentParser:
         help="serve the validated adapter through FastAPI TestClient once",
     )
     api.add_argument("--training-manifest", type=Path, required=True)
-    api.add_argument("--adapter-evaluation", type=Path, required=True)
     api.add_argument("--dataset-root", type=Path, required=True)
     api.add_argument("--output", type=Path, required=True)
     api.add_argument("--project-root", type=Path, required=True)
@@ -1945,7 +1991,6 @@ def main(argv: Sequence[str] | None = None) -> Path:
     elif args.command == "adapter-api-smoke":
         result = run_adapter_api_smoke(
             args.training_manifest,
-            args.adapter_evaluation,
             args.output,
             dataset_root=args.dataset_root,
             project_root=args.project_root,
