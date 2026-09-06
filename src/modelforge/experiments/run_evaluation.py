@@ -7,6 +7,7 @@ import asyncio
 import importlib.metadata
 import math
 import platform
+import re
 import resource
 import sys
 import time
@@ -55,9 +56,11 @@ from modelforge.models import (
 )
 from modelforge.schemas import IssueType, LabeledExample, TriageResult
 from modelforge.schemas._base import StrictBaseModel
+from modelforge.training.manifest import ExperimentManifest, artifact_hashes
 
 BackendName = Literal["heuristic", "hf-base", "hf-adapter", "frontier"]
 EvaluationSplit = Literal["validation", "test", "adversarial"]
+_COMMIT_SHA = re.compile(r"^[0-9a-f]{40}$")
 
 
 class OperationalSummary(StrictBaseModel):
@@ -101,8 +104,18 @@ class OperationalSummary(StrictBaseModel):
         return self
 
 
+class TrainingRunProvenance(StrictBaseModel):
+    """Cryptographic chain of custody from a local LoRA adapter to its training run."""
+
+    training_manifest_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    experiment_name: str = Field(min_length=1)
+    resolved_model_revision: str = Field(pattern=r"^[0-9a-f]{40}$")
+    resolved_tokenizer_revision: str = Field(pattern=r"^[0-9a-f]{40}$")
+    adapter_artifacts_sha256: dict[str, str] = Field(min_length=1)
+
+
 class ModelEvaluationArtifact(StrictBaseModel):
-    artifact_version: Literal["1.0"] = "1.0"
+    artifact_version: Literal["1.0", "1.1"] = "1.1"
     result_status: Literal["measured", "fixture"] = "measured"
     experiment_id: str = Field(min_length=1)
     completed_at: datetime
@@ -110,6 +123,7 @@ class ModelEvaluationArtifact(StrictBaseModel):
     model_id: str = Field(min_length=1)
     observed_model_versions: tuple[str, ...]
     model_configuration: dict[str, Any]
+    training_run: TrainingRunProvenance | None = None
     prompt_version: str | None = None
     prompt_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     dataset_name: str
@@ -139,6 +153,10 @@ class ModelEvaluationArtifact(StrictBaseModel):
                 value = self.model_configuration.get(field)
                 if not isinstance(value, str) or not value.strip():
                     raise ValueError(f"measured frontier artifact requires {field}")
+        if self.backend == "hf-adapter" and self.training_run is None:
+            raise ValueError("adapter evaluation artifacts require verified training-run provenance")
+        if self.backend != "hf-adapter" and self.training_run is not None:
+            raise ValueError("training-run provenance is only valid for adapter evaluations")
         if self.evaluated_count > self.full_split_count:
             raise ValueError("evaluated_count cannot exceed full_split_count")
         if self.partial_run != (self.evaluated_count != self.full_split_count):
@@ -361,6 +379,66 @@ def _model_artifact_configuration(model: TriageModel, backend: BackendName) -> d
     return {"harness_fixture": True, "network": False}
 
 
+def _require_pinned_huggingface_revision(model: TriageModel) -> HuggingFaceModelConfig:
+    config = getattr(model, "config", None)
+    if not isinstance(config, HuggingFaceModelConfig):
+        raise ValueError("Hugging Face evaluation requires a HuggingFaceModelConfig")
+    if not _COMMIT_SHA.fullmatch(config.revision):
+        raise ValueError(
+            "measured Hugging Face evaluation requires a 40-character immutable commit revision"
+        )
+    return config
+
+
+def _verified_training_run_provenance(
+    model: TriageModel,
+    training_manifest_path: Path,
+) -> TrainingRunProvenance:
+    """Bind a local adapter evaluation to the exact training manifest and bytes."""
+
+    config = _require_pinned_huggingface_revision(model)
+    adapter_reference = config.adapter_name_or_path
+    if not adapter_reference:
+        raise ValueError("adapter evaluation requires a local adapter_name_or_path")
+    manifest_path = Path(training_manifest_path)
+    if manifest_path.is_symlink() or not manifest_path.is_file():
+        raise ValueError("training manifest must be a regular file")
+    try:
+        manifest = ExperimentManifest.model_validate_json(
+            manifest_path.read_text(encoding="utf-8")
+        )
+    except Exception as exc:
+        raise ValueError(f"training manifest is invalid: {manifest_path}") from exc
+    if config.revision != manifest.resolved_model_revision:
+        raise ValueError(
+            "adapter evaluation revision does not match the training manifest's resolved model revision"
+        )
+
+    expected_adapter = (manifest_path.parent / "adapter").resolve()
+    adapter_path = Path(adapter_reference)
+    if adapter_path.is_symlink() or not adapter_path.is_dir():
+        raise ValueError("adapter evaluation requires a regular local adapter directory")
+    if adapter_path.resolve() != expected_adapter:
+        raise ValueError("adapter path must be the adapter directory beside its training manifest")
+    actual_hashes = artifact_hashes(adapter_path)
+    expected_hashes = {
+        name.removeprefix("adapter/"): digest
+        for name, digest in manifest.artifacts_sha256.items()
+        if name.startswith("adapter/")
+    }
+    if not expected_hashes:
+        raise ValueError("training manifest does not contain adapter artifact hashes")
+    if actual_hashes != expected_hashes:
+        raise ValueError("adapter files do not match the hashes recorded by the training manifest")
+    return TrainingRunProvenance(
+        training_manifest_sha256=sha256_file(manifest_path),
+        experiment_name=manifest.experiment_name,
+        resolved_model_revision=manifest.resolved_model_revision,
+        resolved_tokenizer_revision=manifest.resolved_tokenizer_revision,
+        adapter_artifacts_sha256=actual_hashes,
+    )
+
+
 def _split_manifest(dataset_root: Path, split: EvaluationSplit) -> tuple[Any, Any]:
     manifest = load_manifest(dataset_root)
     try:
@@ -398,6 +476,7 @@ async def run_model_evaluation(
     timeout_s: float = 120.0,
     limit: int | None = None,
     confirm_locked_test: bool = False,
+    training_manifest_path: Path | None = None,
     overwrite: bool = False,
 ) -> ModelEvaluationArtifact:
     require_available_outputs((output_path,), overwrite=overwrite)
@@ -410,6 +489,16 @@ async def run_model_evaluation(
             "locked-test evaluation requires explicit confirmation; "
             "use --confirm-locked-test only for a deliberate final measurement"
         )
+    if backend in {"hf-base", "hf-adapter"}:
+        _require_pinned_huggingface_revision(model)
+    if backend == "hf-adapter":
+        if training_manifest_path is None:
+            raise ValueError("adapter evaluation requires --training-manifest")
+        training_run = _verified_training_run_provenance(model, training_manifest_path)
+    else:
+        if training_manifest_path is not None:
+            raise ValueError("--training-manifest is only valid for hf-adapter evaluation")
+        training_run = None
     if backend == "frontier":
         provider_config = model.provider.config
         if provider_config.pricing_source is None or provider_config.pricing_as_of is None:
@@ -453,6 +542,7 @@ async def run_model_evaluation(
         model_id=model.model_id,
         observed_model_versions=tuple(sorted(execution.model_versions)),
         model_configuration=_model_artifact_configuration(model, backend),
+        training_run=training_run,
         prompt_version=getattr(prompt, "version", None),
         prompt_sha256=getattr(prompt, "sha256", None),
         dataset_name=manifest.dataset_name,
@@ -585,6 +675,7 @@ async def _async_main(args: argparse.Namespace) -> ModelEvaluationArtifact:
             timeout_s=args.timeout,
             limit=args.limit,
             confirm_locked_test=args.confirm_locked_test,
+            training_manifest_path=args.training_manifest,
             overwrite=args.overwrite,
         )
     finally:
@@ -607,6 +698,11 @@ def main() -> int:
     parser.add_argument("--revision")
     parser.add_argument("--adapter-name-or-path")
     parser.add_argument("--adapter-revision")
+    parser.add_argument(
+        "--training-manifest",
+        type=Path,
+        help="Required for hf-adapter: manifest from the exact local training run.",
+    )
     parser.add_argument("--serving-id")
     parser.add_argument("--device", default="auto")
     parser.add_argument("--precision", choices=("auto", "fp32", "fp16", "bf16"), default="auto")

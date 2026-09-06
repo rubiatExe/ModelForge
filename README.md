@@ -198,6 +198,8 @@ modelforge-train \
 
 The config targets `Qwen/Qwen2.5-0.5B-Instruct` at LoRA rank 16. The run manifest records model revision, dataset hashes, config hash, code SHA, and packages — runs are immutable. **No committed run exists yet in this repo.**
 
+Before authorizing a download or run, follow the [Qwen LoRA evidence runbook](docs/qwen-lora-runbook.md). It pins the candidate revision, preserves the adapter-to-manifest chain of custody, and keeps validation, locked-test, and routing decisions separate. To keep Qwen off the developer laptop, use the [privacy-conscious Colab notebook](notebooks/modelforge_qwen_lora_colab.ipynb); it downloads weights only inside the temporary hosted VM and uploads an allowlisted evidence bundle to a private Hugging Face repository.
+
 To serve a trained local model, copy `.env.example` to `.env` and fill in the HuggingFace and/or frontier provider variables.
 
 ---
