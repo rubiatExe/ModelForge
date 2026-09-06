@@ -28,20 +28,42 @@ Only experiments that produced committed artifacts count as evidence.
 | TF-IDF + logistic regression | ✅ **Measured** | Issue-type classification baseline on the synthetic benchmark |
 | Label-quality ablation (0%, 10%, 30% noise) | ✅ **Measured** | Sensitivity of the classical model to training-label corruption |
 | `heuristic-demo-v1` API fixture | ⚙️ **Harness only** | Software plumbing, not model quality |
-| Qwen2.5-0.5B base model | 🔲 **Not run** | Requires model download + GPU |
-| LoRA/PEFT fine-tune | 🔲 **Not run** | Requires completed training run |
+| Qwen2.5-0.5B base model | ⚙️ **Smoke only** | One pinned-model CUDA preflight; not a quality result |
+| LoRA/PEFT fine-tune | ✅ **Executed** | One-epoch hosted adapter run with private full evidence; no quality claim |
 | Frontier adapter | 🔲 **Not run** | Requires paid API credentials |
 | Routing threshold calibration | 🔲 **Not run** | Policy is labeled `uncalibrated`; not a production recommendation |
 
 The authoritative measured artifacts are:
 - [`experiments/results/classical_tfidf_logreg_v1.json`](experiments/results/classical_tfidf_logreg_v1.json)
 - [`experiments/results/classical_label_quality_ablation_v1.json`](experiments/results/classical_label_quality_ablation_v1.json)
+- [`experiments/results/qwen-lora-colab-implementation-v1.json`](experiments/results/qwen-lora-colab-implementation-v1.json)
+
+### Hosted Qwen/LoRA implementation evidence
+
+On September 6, 2026, the reviewed Colab workflow completed from clean source
+commit `1318d24565af63faf7748d8d85b2ec0aede50c52` on an NVIDIA T4. It trained a
+rank-16 PEFT/LoRA adapter for one epoch across all 500 manifest-verified
+synthetic training rows. The pinned-tokenizer audit verified response-only
+labels for 500/500 rows with zero truncation. The manifest-linked adapter then
+returned one HTTP 200 response through FastAPI's in-process `TestClient`, and
+Pydantic validated it as `TriageResult`. Three deterministic router fixtures
+covered the local, low-confidence fail-closed, and model-error fail-closed
+branches; the policy remains explicitly uncalibrated.
+
+The private evidence archive contains the adapter and detailed manifests; it
+was re-downloaded from an immutable repository commit and all 31 files were
+re-hashed successfully. The committed
+[sanitized summary](experiments/results/qwen-lora-colab-implementation-v1.json)
+publishes the relevant configuration, measurements, and integrity anchors
+without publishing the private location, weights, ticket text, request/response
+bodies, or access token. This run proves implementation and provenance, not
+model-quality improvement, calibration, deployment, or production readiness.
 
 ---
 
 ## Classical baseline results
 
-> ⚠️ A perfect score here is a **warning about benchmark simplicity**, not a production signal. The template generator creates strong lexical cues. No LLM has been evaluated yet.
+> ⚠️ A perfect score here is a **warning about benchmark simplicity**, not a production signal. The template generator creates strong lexical cues. The hosted LLM evidence above is an implementation run, not a quality evaluation.
 
 **TF-IDF + Logistic Regression — `issue_type` only**
 
@@ -196,7 +218,14 @@ modelforge-train \
   --project-root .
 ```
 
-The config targets `Qwen/Qwen2.5-0.5B-Instruct` at LoRA rank 16. The run manifest records model revision, dataset hashes, config hash, code SHA, and packages — runs are immutable. **No committed run exists yet in this repo.**
+The config targets `Qwen/Qwen2.5-0.5B-Instruct` at LoRA rank 16. The run
+manifest records model revision, dataset hashes, config hash, code SHA, and
+packages; runs are immutable. A hosted implementation run has completed, and
+its public-safe summary is committed at
+[`experiments/results/qwen-lora-colab-implementation-v1.json`](experiments/results/qwen-lora-colab-implementation-v1.json).
+The adapter, full manifest, and evidence archive remain private.
+
+Before authorizing a download or run, follow the [Qwen LoRA evidence runbook](docs/qwen-lora-runbook.md). It pins the candidate revision, preserves the adapter-to-manifest chain of custody, and keeps validation, locked-test, and routing decisions separate. To keep Qwen off the developer laptop, use the [privacy-conscious Colab notebook](notebooks/modelforge_qwen_lora_colab.ipynb); it downloads weights only inside the temporary hosted VM and uploads an allowlisted evidence bundle to a private Hugging Face repository.
 
 To serve a trained local model, copy `.env.example` to `.env` and fill in the HuggingFace and/or frontier provider variables.
 
@@ -261,7 +290,7 @@ Ticket text is **untrusted input**. Both generative adapters enforce literal-sub
 **Current limitations:**
 - All examples are template-generated and pending human review
 - Measured results cover only the `issue_type` field (one of five scored fields)
-- No base/LoRA/frontier quality, memory, cost, or load result exists yet
+- No base/LoRA/frontier quality, calibrated-routing, cost, or load result exists yet
 - The routing score is not a calibrated probability
 - The development routing threshold is not approved for production
 

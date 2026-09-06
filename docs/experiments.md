@@ -22,6 +22,10 @@ enough empirical evidence to make that decision.
 “Not run” means there is no committed machine-readable result. Adapter code,
 tests, configuration, or a development policy do not fill that cell.
 
+The [Qwen LoRA evidence runbook](qwen-lora-runbook.md) defines the pre-run,
+training, evaluation, archiving, and serving sequence for E1/E2. It does not
+authorize a model download or turn configured code into measured evidence.
+
 ## E0a: measured classical baseline
 
 Artifact:

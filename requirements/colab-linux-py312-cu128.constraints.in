@@ -1,0 +1,4 @@
+# Match Google Colab's pinned 2026.07 runtime while keeping the ModelForge
+# dependency graph reproducible. The compiled lock also pins every transitive
+# dependency and distribution hash for Linux x86_64 / Python 3.12 / CUDA 12.8.
+torch==2.11.0

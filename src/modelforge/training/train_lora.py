@@ -10,7 +10,12 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
-from modelforge.datasets import read_jsonl
+from modelforge.datasets import (
+    load_manifest,
+    load_training_examples,
+    load_validation_examples,
+    validate_no_cross_split_leakage,
+)
 from modelforge.models.base import (
     ModelConfigurationError,
     ModelDependencyError,
@@ -74,17 +79,47 @@ def _require_training_stack() -> tuple[Any, ...]:
     return (torch, *peft, *transformers)
 
 
-def _require_split(path: Path, split: DatasetSplit) -> list[LabeledExample]:
-    try:
-        examples = read_jsonl(path, LabeledExample)
-    except Exception as exc:
-        raise ModelConfigurationError(f"failed to load {split.value} training artifact", cause=exc) from exc
-    wrong = [item.example_id for item in examples if item.split is not split]
-    if wrong:
+def _load_verified_training_examples(
+    config: LoraTrainingConfig,
+) -> tuple[list[LabeledExample], list[LabeledExample]]:
+    """Load only train/validation through the manifest-verified dataset boundary."""
+
+    train_path = config.train_data.resolve()
+    validation_path = config.validation_data.resolve()
+    if train_path.parent != validation_path.parent:
         raise ModelConfigurationError(
-            f"{path} contains records outside the {split.value} split: {wrong[:3]}"
+            "train_data and validation_data must be direct artifacts of the same dataset root"
         )
-    return examples
+    dataset_root = train_path.parent
+    try:
+        manifest = load_manifest(dataset_root)
+        declared_files = {
+            item.split: (dataset_root / item.file).resolve() for item in manifest.splits
+        }
+        if train_path != declared_files[DatasetSplit.TRAIN]:
+            raise ModelConfigurationError(
+                "train_data does not match the manifest-declared training artifact"
+            )
+        if validation_path != declared_files[DatasetSplit.VALIDATION]:
+            raise ModelConfigurationError(
+                "validation_data does not match the manifest-declared validation artifact"
+            )
+        training = load_training_examples(dataset_root)
+        validation = load_validation_examples(dataset_root)
+        validate_no_cross_split_leakage(
+            {
+                DatasetSplit.TRAIN: training,
+                DatasetSplit.VALIDATION: validation,
+            }
+        )
+    except ModelConfigurationError:
+        raise
+    except Exception as exc:
+        raise ModelConfigurationError(
+            "training dataset failed manifest or cross-split integrity validation",
+            cause=exc,
+        ) from exc
+    return training, validation
 
 
 def supervised_messages(
@@ -247,8 +282,7 @@ def run_lora_training(
     if not config.train_data.is_file() or not config.validation_data.is_file():
         raise ModelConfigurationError("train and validation artifacts must exist before training")
     prompt = load_iam_prompt(config.prompt_path)
-    train_examples = _require_split(config.train_data, DatasetSplit.TRAIN)
-    validation_examples = _require_split(config.validation_data, DatasetSplit.VALIDATION)
+    train_examples, validation_examples = _load_verified_training_examples(config)
 
     (
         torch,

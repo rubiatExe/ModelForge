@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -45,7 +46,7 @@ from modelforge.training.tokenization import (
     pad_response_only_batch,
     tokenize_response_only,
 )
-from modelforge.training.train_lora import supervised_messages
+from modelforge.training.train_lora import _load_verified_training_examples, supervised_messages
 
 
 class _CharacterTokenizer:
@@ -152,6 +153,53 @@ def test_checked_in_qwen_config_loads_without_ml_dependencies() -> None:
     assert config.lora.rank == 16
     assert config.optimizer == "adamw_torch"
     assert config.require_resolved_revision
+    assert config.model_revision == "7ae557604adf67be50417f59c2c2f167def9a775"
+    assert config.tokenizer_revision == "7ae557604adf67be50417f59c2c2f167def9a775"
+
+
+def test_training_loader_rejects_tampered_manifest_artifact(tmp_path: Path) -> None:
+    source = Path("data/iam_triage_v1")
+    dataset_root = tmp_path / "iam_triage_v1"
+    shutil.copytree(source, dataset_root)
+    train_path = dataset_root / "train.jsonl"
+    train_path.write_text(train_path.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+    config = load_training_config(
+        Path("experiments/configs/qwen_lora_r16_v1.yaml"),
+        project_root=Path.cwd(),
+    ).model_copy(
+        update={
+            "train_data": train_path,
+            "validation_data": dataset_root / "validation.jsonl",
+        }
+    )
+
+    with pytest.raises(ModelConfigurationError, match="manifest or cross-split"):
+        _load_verified_training_examples(config)
+
+
+def test_training_loader_rejects_cross_split_duplicate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = load_training_config(
+        Path("experiments/configs/qwen_lora_r16_v1.yaml"),
+        project_root=Path.cwd(),
+    )
+    from modelforge.datasets import load_training_examples, load_validation_examples
+
+    training = load_training_examples(config.train_data.parent)
+    validation = load_validation_examples(config.validation_data.parent)
+    leaking_validation = validation[0].model_copy(update={"ticket": training[0].ticket})
+    monkeypatch.setattr(
+        "modelforge.training.train_lora.load_training_examples",
+        lambda _: [training[0]],
+    )
+    monkeypatch.setattr(
+        "modelforge.training.train_lora.load_validation_examples",
+        lambda _: [leaking_validation],
+    )
+
+    with pytest.raises(ModelConfigurationError, match="manifest or cross-split"):
+        _load_verified_training_examples(config)
 
 
 class _FakeCuda:
